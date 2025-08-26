@@ -1,4 +1,4 @@
-package dev.lcapi.multybot.infra;
+package multybot.infra;
 
 import java.text.MessageFormat;
 import java.util.Locale;

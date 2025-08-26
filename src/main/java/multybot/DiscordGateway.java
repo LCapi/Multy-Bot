@@ -1,4 +1,4 @@
-package dev.lcapi.multybot;
+package multybot;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
@@ -7,8 +7,8 @@ import io.quarkus.runtime.StartupEvent;
 import io.quarkus.runtime.ShutdownEvent;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-import dev.lcapi.multybot.core.CommandRouter;
-import dev.lcapi.multybot.infra.I18n;
+import multybot.core.CommandRouter;
+import multybot.infra.I18n;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 

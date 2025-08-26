@@ -1,8 +1,8 @@
-package dev.lcapi.multybot.features;
+package multybot.features;
 
 import java.util.Locale;
-import dev.lcapi.multybot.core.*;
-import dev.lcapi.multybot.infra.I18n;
+import multybot.core.*;
+import multybot.infra.I18n;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;

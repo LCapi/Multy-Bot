@@ -1,12 +1,12 @@
-package dev.lcapi.multybot.infra;
+package multybot.infra;
 
 import java.time.Instant;
 import java.util.Optional;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import dev.lcapi.multybot.core.*;
-import dev.lcapi.multybot.infra.persistence.CooldownDoc;
+import multybot.core.*;
+import multybot.infra.persistence.CooldownDoc;
 import net.dv8tion.jda.api.Permission;
 
 @ApplicationScoped

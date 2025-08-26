@@ -1,4 +1,4 @@
-package dev.lcapi.multybot.core;
+package multybot.core;
 
 import java.util.Locale;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;

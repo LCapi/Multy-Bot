@@ -1,4 +1,4 @@
-package dev.lcapi.multybot.infra.persistence;
+package multybot.infra.persistence;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;

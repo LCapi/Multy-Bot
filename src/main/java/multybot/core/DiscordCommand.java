@@ -1,4 +1,4 @@
-package dev.lcapi.multybot.core;
+package multybot.core;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;

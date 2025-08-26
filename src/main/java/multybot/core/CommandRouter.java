@@ -6,8 +6,8 @@ import java.util.stream.Collectors;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
-import dev.lcapi.multybot.infra.I18n;
-import dev.lcapi.multybot.infra.PreconditionsExecutor;
+import multybot.infra.I18n;
+import multybot.infra.PreconditionsExecutor;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 

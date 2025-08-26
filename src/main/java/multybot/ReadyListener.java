@@ -1,11 +1,11 @@
-package dev.lcapi.multybot;
+package multybot;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 
-import dev.lcapi.multybot.core.CommandRouter;
+import multybot.core.CommandRouter;
 
 import java.util.Locale;
 

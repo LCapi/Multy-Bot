@@ -1,12 +1,12 @@
-package dev.lcapi.multybot;
+package multybot;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 
-import dev.lcapi.multybot.core.*;
-import dev.lcapi.multybot.infra.persistence.GuildConfig;
+import multybot.core.*;
+import multybot.infra.persistence.GuildConfig;
 
 import java.util.Locale;
 
