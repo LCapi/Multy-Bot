@@ -1,0 +1,1 @@
+# Construye "Authorization: Bearer ..."
