@@ -1,0 +1,68 @@
+package multybot.features.moderation;
+
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import multybot.core.*;
+import multybot.infra.I18n;
+import multybot.infra.LogService;
+import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.interactions.commands.OptionType;
+import net.dv8tion.jda.api.interactions.commands.build.Commands;
+import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
+
+import java.util.Locale;
+
+@ApplicationScoped
+@DiscordCommand(name = "ban", descriptionKey = "mod.ban.description")
+@RequirePermissions({ Permission.BAN_MEMBERS })
+@Cooldown(seconds = 5)
+public class BanCommand implements Command {
+
+    @Inject I18n i18n;
+    @Inject LogService logs;
+
+    @Override
+    public SlashCommandData slashData(Locale locale) {
+        return Commands.slash("ban", i18n.msg(locale, "mod.ban.description"))
+                .addOption(OptionType.USER, "user", "Usuario a banear", true)
+                .addOption(OptionType.INTEGER, "days", "Borrar mensajes últimos N días (0-7)", false)
+                .addOption(OptionType.STRING, "reason", "Razón", false);
+    }
+
+    @Override
+    public void execute(CommandContext ctx) {
+        var ev = ctx.event();
+        Member target = ev.getOption("user").getAsMember();
+        int days = ev.getOption("days") != null ? ev.getOption("days").getAsInt() : 0;
+        if (days < 0) days = 0; if (days > 7) days = 7;
+        String reason = ev.getOption("reason") != null ? ev.getOption("reason").getAsString()
+                : i18n.msg(ctx.locale(), "mod.reason");
+
+        if (target == null || !ctx.guild().getSelfMember().canInteract(target)) {
+            ctx.hook().sendMessage(i18n.msg(ctx.locale(), "mod.error.member.higher")).queue();
+            return;
+        }
+        if (!ctx.guild().getSelfMember().hasPermission(Permission.BAN_MEMBERS)) {
+            ctx.hook().sendMessage(i18n.msg(ctx.locale(), "mod.error.permission.bot")).queue();
+            return;
+        }
+
+        ctx.guild().ban(target, days).reason(reason).queue();
+
+        var mc = new ModerationCase();
+        mc.guildId = ctx.guild().getId();
+        mc.moderatorId = ctx.member().getId();
+        mc.targetId = target.getId();
+        mc.type = ModerationType.BAN;
+        mc.reason = reason;
+        mc.persist();
+
+        logs.log(ctx.guild(), "**[BAN]** <@%s> (by <@%s>) — %s".formatted(
+                target.getId(), ctx.member().getId(), reason));
+
+        ctx.hook().sendMessage(i18n.msg(ctx.locale(), "mod.done")).queue();
+    }
+
+    @Override public String name() { return "ban"; }
+}
