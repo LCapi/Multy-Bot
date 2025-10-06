@@ -25,7 +25,7 @@ public class DiscordGateway {
 
     void onStart(@Observes StartupEvent ev) throws Exception {
         jda = JDABuilder.createDefault(token)
-                .addEventListeners(ready, interactions)
+                .addEventListeners(ready, interactions,componentListener)
                 .build();
         jda.awaitReady();
     }
