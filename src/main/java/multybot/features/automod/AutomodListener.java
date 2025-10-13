@@ -32,38 +32,25 @@ public class AutomodListener extends ListenerAdapter {
         if (!event.isFromGuild()) return;
         var msg = event.getMessage();
         var author = event.getAuthor();
-        if (author.isBot() || author.isSystem()) return; // ignorar bots y sistema
+        if (author.isBot() || author.isSystem()) return;
 
         var guild = event.getGuild();
         var member = event.getMember();
         if (member == null) return;
 
         AutomodConfig cfg = AutomodConfig.findById(guild.getId());
-        if (cfg == null || !cfg.isEnabled()) return; // desactivado
+        if (cfg == null || !cfg.isEnabled()) return;
+
+        // >>> EXENCIONES
+        var channelId = event.getChannel().getId();
+        var userId = author.getId();
+        var roles = member.getRoles();
+        if (cfg.isExempt(channelId, userId, roles)) {
+            return; // saltar evaluación si hay exención por rol/canal/usuario
+        }
+        // <<< EXENCIONES
 
         String content = msg.getContentStripped();
-        // PRIORIDAD: invites > links > badwords > mentions > caps
-        if (cfg.invitesEnabled && matchesInvite(content)) {
-            handleAction("INVITES", cfg.invitesAction, 0, event);
-            return;
-        }
-        if (cfg.linksEnabled && matchesUrl(content)) {
-            handleAction("LINKS", cfg.linksAction, 0, event);
-            return;
-        }
-        if (cfg.badwordsEnabled && matchesBadword(content, cfg)) {
-            int minutes = Math.max(0, cfg.badwordsTimeoutMinutes);
-            handleAction("BADWORDS", cfg.badwordsAction, minutes, event);
-            return;
-        }
-        if (cfg.mentionsEnabled && tooManyMentions(msg, cfg)) {
-            handleAction("MENTIONS", cfg.mentionsAction, cfg.mentionsTimeoutMinutes, event);
-            return;
-        }
-        if (cfg.capsEnabled && isShouting(content, cfg)) {
-            handleAction("CAPS", cfg.capsAction, cfg.capsTimeoutMinutes, event);
-        }
-    }
 
     private boolean matchesUrl(String s) {
         return URL.matcher(s).find();

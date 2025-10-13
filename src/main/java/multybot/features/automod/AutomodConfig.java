@@ -1,11 +1,6 @@
-package multybot.features.automod;
-
-import io.quarkus.mongodb.panache.PanacheMongoEntityBase;
-import io.quarkus.mongodb.panache.common.MongoEntity;
-import org.bson.codecs.pojo.annotations.BsonId;
-
-import java.util.ArrayList;
-import java.util.List;
+// ... package e imports existentes ...
+import java.util.HashSet;
+import java.util.Set;
 
 @MongoEntity(collection = "automod_config")
 public class AutomodConfig extends PanacheMongoEntityBase {
@@ -13,35 +8,12 @@ public class AutomodConfig extends PanacheMongoEntityBase {
 
     public boolean enabled = false;
 
-    // Regla: BADWORDS
-    public boolean badwordsEnabled = true;
-    public List<String> badwords = new ArrayList<>(List.of(
-            // ejemplo inicial, ajusta o vacía si prefieres
-            "idiota","imbécil","estúpido"
-    ));
-    public String badwordsAction = "DELETE"; // DELETE | WARN | TIMEOUT
-    public int badwordsTimeoutMinutes = 0;
+    // ... (reglas ya existentes)
 
-    // Regla: LINKS
-    public boolean linksEnabled = true;
-    public String linksAction = "DELETE";
-
-    // Regla: INVITES
-    public boolean invitesEnabled = true;
-    public String invitesAction = "DELETE";
-
-    // Regla: CAPS
-    public boolean capsEnabled = true;
-    public int capsPercent = 70;   // % de letras en mayúsculas
-    public int capsMinLen = 12;    // longitud mínima del mensaje para evaluar
-    public String capsAction = "TIMEOUT";
-    public int capsTimeoutMinutes = 5;
-
-    // Regla: MENTIONS
-    public boolean mentionsEnabled = true;
-    public int mentionsMax = 5;    // máximo de menciones totales (users/roles/everyone)
-    public String mentionsAction = "TIMEOUT";
-    public int mentionsTimeoutMinutes = 10;
+    // === EXENCIONES ===
+    public Set<String> exemptRoleIds   = new HashSet<>();    // IDs de rol
+    public Set<String> exemptChannelIds= new HashSet<>();    // IDs de canal
+    public Set<String> exemptUserIds   = new HashSet<>();    // IDs de usuario
 
     public static AutomodConfig loadOrDefault(String guildId) {
         AutomodConfig c = findById(guildId);
@@ -50,6 +22,17 @@ public class AutomodConfig extends PanacheMongoEntityBase {
             c.guildId = guildId;
         }
         return c;
+    }
+
+    public boolean isExempt(String channelId, String userId, java.util.List<net.dv8tion.jda.api.entities.Role> roles) {
+        if (channelId != null && exemptChannelIds.contains(channelId)) return true;
+        if (userId != null && exemptUserIds.contains(userId)) return true;
+        if (roles != null) {
+            for (var r : roles) {
+                if (exemptRoleIds.contains(r.getId())) return true;
+            }
+        }
+        return false;
     }
 
     public boolean isEnabled() { return enabled; }
