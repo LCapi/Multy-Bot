@@ -43,8 +43,8 @@ public class GreetListener extends ListenerAdapter {
     @Override
     public void onGuildMemberRemove(GuildMemberRemoveEvent event) {
         var guild = event.getGuild();
-        var cfg = GreetConfig.findById(guild.getId());
-        if (cfg == null || cfg.goodbyeChannelId == null || cfg.goodbyeMessage == null) return;
+        GreetConfig cfg = GreetConfig.findById(guild.getId());
+        if (cfg == null || cfg.welcomeChannelId == null || cfg.welcomeMessage == null) return;
 
         MessageChannel ch = guild.getChannelById(MessageChannel.class, cfg.goodbyeChannelId);
         if (ch == null) return;

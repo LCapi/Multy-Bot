@@ -133,7 +133,9 @@ public class AutomodExemptCommand implements Command {
         var o = ctx.event().getOption("role"); return o == null ? null : o.getAsRole();
     }
     private GuildChannel optChannel(CommandContext ctx) {
-        var o = ctx.event().getOption("channel"); return o == null ? null : o.getAsChannel().asGuildChannel();
+        // en AutomodExemptCommand.handleAdd/remove para type "channel":
+        String channelId = ctx.event().getOption("channel").getAsChannel().getId();
+        cfg.exemptChannelIds.add(channelId); // o .remove(channelId)
     }
     private User optUser(CommandContext ctx) {
         var o = ctx.event().getOption("user"); return o == null ? null : o.getAsUser();

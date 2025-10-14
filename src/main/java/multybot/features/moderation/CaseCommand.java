@@ -13,11 +13,9 @@ import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 
 import io.quarkus.mongodb.panache.PanacheQuery;
-import io.quarkus.mongodb.panache.common.Sort;
 import io.quarkus.panache.common.Page;
 import org.bson.types.ObjectId;
 
-import java.awt.*;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -91,7 +89,7 @@ public class CaseCommand implements Command {
         if (type != null)  { q.append(" and type = ?").append(idx); params.add(type); }
 
         PanacheQuery<ModerationCase> query =
-                ModerationCase.find(q.toString(), params.toArray()).sort(Sort.by("createdAt").descending());
+                ModerationCase.find("guildId", gid).page(page).list();
 
         long total = query.count();
         int pageCount = (int) Math.max(1, Math.ceil(total / (double) PAGE_SIZE));

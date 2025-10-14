@@ -13,11 +13,9 @@ public class LogService {
         GuildConfig cfg = GuildConfig.findById(guild.getId());
         if (cfg == null || cfg.logChannelId == null) return;
 
-        var ch = guild.getChannelById(MessageChannel.class, cfg.logChannelId);
+        var ch = guild.getTextChannelById(id);
         if (ch != null) {
-            ch.sendMessage(message).queue(
-                    ok -> {}, err -> {} // silencioso
-            );
+            ch.sendMessage(message).queue();
         }
     }
 }

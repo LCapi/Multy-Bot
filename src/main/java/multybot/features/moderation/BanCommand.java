@@ -48,7 +48,7 @@ public class BanCommand implements Command {
             return;
         }
 
-        ctx.guild().ban(target, days).reason(reason).queue();
+        guild.ban(member.getUser(), 1).reason(reason).queue();
 
         var mc = new ModerationCase();
         mc.guildId = ctx.guild().getId();

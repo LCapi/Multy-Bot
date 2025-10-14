@@ -22,22 +22,22 @@ public class PreconditionsExecutor {
             if (!ok) return Optional.of(i18n.msg(ctx.locale(), "perm.missing"));
         }
         // Cooldown
-        Cooldown cd = cmd.getClass().getAnnotation(Cooldown.class);
-        if (cd != null) {
-            String key = ctx.guild().getId()+":"+ctx.member().getId()+":"+cmd.name();
-            CooldownDoc doc = CooldownDoc.findById(key);
-            if (doc != null && doc.expiresAt.after(java.util.Date.from(Instant.now()))) {
-                return Optional.of(i18n.msg(ctx.locale(), "cooldown.active"));
-            }
-            // set/update
-            CooldownDoc newDoc = new CooldownDoc();
-            newDoc.key = key;
-            newDoc.guildId = ctx.guild().getId();
-            newDoc.userId = ctx.member().getId();
-            newDoc.command = cmd.name();
-            newDoc.expiresAt = java.util.Date.from(Instant.now().plusSeconds(cd.seconds()));
-            CooldownDoc.persistOrUpdate(newDoc);
-        }
+       // Cooldown cd = cmd.getClass().getAnnotation(Cooldown.class);
+       // if (cd != null) {
+       //     String key = ctx.guild().getId()+":"+ctx.member().getId()+":"+cmd.name();
+       //     CooldownDoc doc = CooldownDoc.findById(key);
+       //     if (doc != null && doc.expiresAt.after(java.util.Date.from(Instant.now()))) {
+       //         return Optional.of(i18n.msg(ctx.locale(), "cooldown.active"));
+       //     }
+       //     // set/update
+       //     CooldownDoc newDoc = new CooldownDoc();
+       //     newDoc.key = key;
+       //     newDoc.guildId = ctx.guild().getId();
+       //     newDoc.userId = ctx.member().getId();
+       //     newDoc.command = cmd.name();
+       //     newDoc.expiresAt = java.util.Date.from(Instant.now().plusSeconds(cd.seconds()));
+       //     CooldownDoc.persistOrUpdate(newDoc);
+       // }
         return Optional.empty();
     }
 }
