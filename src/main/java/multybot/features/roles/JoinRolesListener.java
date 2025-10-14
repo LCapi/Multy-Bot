@@ -18,8 +18,8 @@ public class JoinRolesListener extends ListenerAdapter {
         var guild = event.getGuild();
         var self  = guild.getSelfMember();
 
-        var cfg = SpaceJoinRoles.findById(Platform.DISCORD.name().toLowerCase() + ":" + guild.getId());
-        if (cfg == null || cfg.roleIds == null || cfg.roleIds.isEmpty()) return;
+        var cfg = SpaceJoinRoles.of(Platform.DISCORD, guild.getId());
+        if (cfg.roleIds == null || cfg.roleIds.isEmpty()) return;
         if (!self.hasPermission(Permission.MANAGE_ROLES)) return;
 
         List<Role> toAdd = new ArrayList<>();

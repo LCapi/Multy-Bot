@@ -9,6 +9,8 @@ import net.dv8tion.jda.api.JDABuilder;
 
 public class DiscordGateway {
 
+    private static final Logger LOG = Logger.getLogger(DiscordGateway.class);
+
     @ConfigProperty(name = "discord.token", defaultValue = "")
     String token; // se mapea desde la env DISCORD_TOKEN
 

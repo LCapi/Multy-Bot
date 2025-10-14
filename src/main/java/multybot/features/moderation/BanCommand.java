@@ -32,12 +32,13 @@ public class BanCommand implements Command {
 
     @Override
     public void execute(CommandContext ctx) {
-        var ev = ctx.event();
-        Member target = ev.getOption("user").getAsMember();
-        int days = ev.getOption("days") != null ? ev.getOption("days").getAsInt() : 0;
-        if (days < 0) days = 0; if (days > 7) days = 7;
-        String reason = ev.getOption("reason") != null ? ev.getOption("reason").getAsString()
-                : i18n.msg(ctx.locale(), "mod.reason");
+        var guild = ctx.guild();
+        var member = ctx.event().getOption("user").getAsMember(); // o como lo estés recibiendo
+        if (member != null) {
+            guild.ban(member.getUser(), 1) // 1 día de purge, ajusta si hace falta
+                    .reason("Manual ban")
+                    .queue();
+        }
 
         if (target == null || !ctx.guild().getSelfMember().canInteract(target)) {
             ctx.hook().sendMessage(i18n.msg(ctx.locale(), "mod.error.member.higher")).queue();
