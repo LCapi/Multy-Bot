@@ -18,11 +18,9 @@ public class GreetConfig extends PanacheMongoEntityBase {
     public String goodbyeMessage;   // usa {user} y {guild}
 
     public static GreetConfig of(String guildId) {
-        GreetConfig cfg = findById(guildId);
-        if (cfg == null) {
-            cfg = new GreetConfig();
-            cfg.guildId = guildId;
-        }
-        return cfg;
+        GreetConfig c = findById(guildId);
+        if (c == null) { c = new GreetConfig(); c.guildId = guildId; }
+        return c;
     }
+
 }

@@ -1,28 +1,15 @@
 package multybot.features.automod;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
-import multybot.infra.I18n;
-import multybot.infra.LogService;
-import multybot.features.moderation.ModerationCase;
-import multybot.features.moderation.ModerationType;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Member;
-import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 
-import java.time.Duration;
-import java.util.Date;
-import java.util.Locale;
 import java.util.regex.Pattern;
 
 @ApplicationScoped
 public class AutomodListener extends ListenerAdapter {
-
-    @Inject I18n i18n;
-    @Inject LogService logs;
 
     private static final Pattern URL = Pattern.compile("(?i)\\b(?:https?://|www\\.)\\S+");
     private static final Pattern INVITE = Pattern.compile("(?i)discord\\.(gg|com/invite)/[A-Za-z0-9-]+");
@@ -30,52 +17,62 @@ public class AutomodListener extends ListenerAdapter {
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
         if (!event.isFromGuild()) return;
-        var msg = event.getMessage();
-        var author = event.getAuthor();
-        if (author.isBot() || author.isSystem()) return;
+        if (event.getAuthor().isBot() || event.getAuthor().isSystem()) return;
 
-        var guild = event.getGuild();
-        var member = event.getMember();
-        if (member == null) return;
+        var guild  = event.getGuild();
+        Member mem = event.getMember();
+        if (mem == null) return;
 
         AutomodConfig cfg = AutomodConfig.findById(guild.getId());
         if (cfg == null || !cfg.isEnabled()) return;
 
-        // >>> EXENCIONES
+        // EXENCIONES (rol/canal/usuario)
         var channelId = event.getChannel().getId();
-        var userId = author.getId();
-        var roles = member.getRoles();
-        if (cfg.isExempt(channelId, userId, roles)) {
-            return; // saltar evaluación si hay exención por rol/canal/usuario
+        var userId    = event.getAuthor().getId();
+        if (cfg.isExempt(channelId, userId, mem.getRoles())) return;
+
+        // === Reglas básicas (ejemplo mínimo) ===
+        String content = event.getMessage().getContentStripped();
+
+        // INVITES
+        if (cfg.invitesEnabled && INVITE.matcher(content).find()) {
+            handleDelete(event, "INVITES");
+            return;
         }
-        // <<< EXENCIONES
-
-        String content = msg.getContentStripped();
-
-    private boolean matchesUrl(String s) {
-        return URL.matcher(s).find();
-    }
-
-    private boolean matchesInvite(String s) {
-        return INVITE.matcher(s).find();
+        // LINKS
+        if (cfg.linksEnabled && URL.matcher(content).find()) {
+            handleDelete(event, "LINKS");
+            return;
+        }
+        // BADWORDS
+        if (cfg.badwordsEnabled && matchesBadword(content, cfg)) {
+            handleDelete(event, "BADWORDS");
+            return;
+        }
+        // MENTIONS
+        if (cfg.mentionsEnabled && tooManyMentions(event, cfg)) {
+            handleTimeout(event, cfg.mentionsTimeoutMinutes, "MENTIONS");
+            return;
+        }
+        // CAPS
+        if (cfg.capsEnabled && isShouting(content, cfg)) {
+            handleTimeout(event, cfg.capsTimeoutMinutes, "CAPS");
+        }
     }
 
     private boolean matchesBadword(String s, AutomodConfig cfg) {
         if (cfg.badwords == null || cfg.badwords.isEmpty()) return false;
         String lower = s.toLowerCase();
-        // búsqueda simple contiene; si prefieres límites de palabra, compila regex por palabra
         for (String w : cfg.badwords) {
-            if (w == null || w.isBlank()) continue;
-            if (lower.contains(w.toLowerCase())) return true;
+            if (w != null && !w.isBlank() && lower.contains(w.toLowerCase())) return true;
         }
         return false;
     }
 
-    private boolean tooManyMentions(Message m, AutomodConfig cfg) {
-        int users = m.getMentions().getUsers().size();
-        int roles = m.getMentions().getRoles().size();
-        boolean everyone = m.getMentions().isMentioned(m.getGuild().getPublicRole(), Message.MentionType.ROLE)
-                || m.getMentions().mentionsEveryone();
+    private boolean tooManyMentions(MessageReceivedEvent e, AutomodConfig cfg) {
+        int users = e.getMessage().getMentions().getUsers().size();
+        int roles = e.getMessage().getMentions().getRoles().size();
+        boolean everyone = e.getMessage().getMentions().mentionsEveryone();
         int total = users + roles + (everyone ? 1 : 0);
         return total >= cfg.mentionsMax;
     }
@@ -90,71 +87,22 @@ public class AutomodListener extends ListenerAdapter {
             }
         }
         if (s.length() < cfg.capsMinLen || letters == 0) return false;
-        int pct = (int) Math.round((upper * 100.0) / letters);
+        int pct = (int)Math.round(upper * 100.0 / letters);
         return pct >= cfg.capsPercent;
     }
 
-    private void handleAction(String rule, String action, int minutes, MessageReceivedEvent event) {
-        var guild = event.getGuild();
-        var member = event.getMember();
-        var channel = event.getChannel();
-        Locale locale = new Locale("es"); // si tienes locale por guild, cárgalo aquí
+    private void handleDelete(MessageReceivedEvent e, String rule) {
+        var self = e.getGuild().getSelfMember();
+        if (!self.hasPermission(e.getGuildChannel(), Permission.MESSAGE_MANAGE)) return;
+        e.getMessage().delete().queue();
+    }
 
-        String reason = "AutoMod: " + rule;
-
-        switch (action.toUpperCase()) {
-            case "DELETE" -> {
-                if (!guild.getSelfMember().hasPermission(channel.asGuildMessageChannel(), Permission.MESSAGE_MANAGE)) {
-                    channel.sendMessage(i18n.msg(locale, "automod.no_perms.delete")).queue(m -> m.delete().queueAfter(java.time.Duration.ofSeconds(5)));
-                    break;
-                }
-                event.getMessage().delete().queue(
-                        ok -> logs.log(guild, "**[AutoMod]** DELETE (" + rule + ") msg " + event.getMessageId() + " by <@" + member.getId() + ">"),
-                        err -> {}
-                );
-            }
-            case "WARN" -> {
-                // Guardar caso WARN + DM si es posible
-                ModerationCase mc = new ModerationCase();
-                mc.guildId = guild.getId();
-                mc.moderatorId = guild.getSelfMember().getId();
-                mc.targetId = member.getId();
-                mc.type = ModerationType.WARN;
-                mc.reason = reason;
-                mc.persist();
-
-                logs.log(guild, "**[AutoMod]** WARN (" + rule + ") <@" + member.getId() + ">");
-                member.getUser().openPrivateChannel().queue(pc -> {
-                    pc.sendMessage(i18n.msg(locale, "automod.warn.dm", guild.getName(), reason)).queue(
-                            ok -> {},
-                            err -> {}
-                    );
-                }, err -> {});
-            }
-            case "TIMEOUT" -> {
-                if (!guild.getSelfMember().hasPermission(Permission.MODERATE_MEMBERS)) {
-                    channel.sendMessage(i18n.msg(locale, "automod.no_perms.timeout")).queue(m -> m.delete().queueAfter(java.time.Duration.ofSeconds(5)));
-                    break;
-                }
-                int mins = Math.max(1, minutes);
-                member.timeoutFor(Duration.ofMinutes(mins)).reason(reason).queue(
-                        ok -> {
-                            ModerationCase mc = new ModerationCase();
-                            mc.guildId = guild.getId();
-                            mc.moderatorId = guild.getSelfMember().getId();
-                            mc.targetId = member.getId();
-                            mc.type = ModerationType.TIMEOUT;
-                            mc.reason = reason;
-                            mc.expiresAt = new Date(System.currentTimeMillis() + Duration.ofMinutes(mins).toMillis());
-                            mc.persist();
-                            logs.log(guild, "**[AutoMod]** TIMEOUT " + mins + "m (" + rule + ") <@" + member.getId() + ">");
-                        },
-                        err -> {}
-                );
-            }
-            default -> {}
-        }
-        // Mensaje informativo (ephemeral no aplica a mensajes), opcionalmente nada.
-        // channel.sendMessage(i18n.msg(locale,"automod.hit", rule, reason)).queue(m -> m.delete().queueAfter(Duration.ofSeconds(5)));
+    private void handleTimeout(MessageReceivedEvent e, int minutes, String rule) {
+        var self = e.getGuild().getSelfMember();
+        if (!self.hasPermission(Permission.MODERATE_MEMBERS)) return;
+        var member = e.getMember();
+        if (member == null) return;
+        java.time.Duration dur = java.time.Duration.ofMinutes(Math.max(1, minutes));
+        member.timeoutFor(dur).reason("AutoMod: " + rule).queue();
     }
 }

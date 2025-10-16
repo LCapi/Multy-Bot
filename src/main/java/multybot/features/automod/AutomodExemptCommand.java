@@ -65,9 +65,9 @@ public class AutomodExemptCommand implements Command {
                 cfg.exemptRoleIds.add(r.getId());
             }
             case "channel" -> {
-                GuildChannel ch = optChannel(ctx);
-                if (ch == null) { ctx.hook().sendMessage(i18n.msg(ctx.locale(),"automod.exempt.error.input")).queue(); return; }
-                cfg.exemptChannelIds.add(ch.getId());
+                String channelId = optChannelId(ctx);
+                if (channelId == null) { ctx.hook().sendMessage(i18n.msg(ctx.locale(),"automod.exempt.error.input")).queue(); return; }
+                cfg.exemptChannelIds.add(channelId);
             }
             case "user" -> {
                 User u = optUser(ctx);
@@ -92,9 +92,9 @@ public class AutomodExemptCommand implements Command {
                 removed = cfg.exemptRoleIds.remove(r.getId());
             }
             case "channel" -> {
-                GuildChannel ch = optChannel(ctx);
-                if (ch == null) { ctx.hook().sendMessage(i18n.msg(ctx.locale(),"automod.exempt.error.input")).queue(); return; }
-                removed = cfg.exemptChannelIds.remove(ch.getId());
+                String channelId = optChannelId(ctx);
+                if (channelId == null) { ctx.hook().sendMessage(i18n.msg(ctx.locale(),"automod.exempt.error.input")).queue(); return; }
+                cfg.exemptChannelIds.remove(channelId);
             }
             case "user" -> {
                 User u = optUser(ctx);
@@ -132,9 +132,11 @@ public class AutomodExemptCommand implements Command {
     private Role optRole(CommandContext ctx) {
         var o = ctx.event().getOption("role"); return o == null ? null : o.getAsRole();
     }
-    private GuildChannel optChannel(CommandContext ctx) {
-        var o = ctx.event().getOption("channel"); return o == null ? null : o.getAsChannel().asGuildChannel();
+    private String optChannelId(CommandContext ctx) {
+        var o = ctx.event().getOption("channel");
+        return (o == null) ? null : o.getAsChannel().getId();
     }
+
     private User optUser(CommandContext ctx) {
         var o = ctx.event().getOption("user"); return o == null ? null : o.getAsUser();
     }
