@@ -7,6 +7,7 @@ import org.jboss.logging.Logger;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 
+@ApplicationScoped
 public class DiscordGateway {
 
     private static final Logger LOG = Logger.getLogger(DiscordGateway.class);

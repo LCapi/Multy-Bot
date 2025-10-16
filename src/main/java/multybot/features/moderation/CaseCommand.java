@@ -6,23 +6,21 @@ import multybot.core.*;
 import multybot.infra.I18n;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
-import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
-
-import io.quarkus.mongodb.panache.PanacheQuery;
-import io.quarkus.panache.common.Page;
 import org.bson.types.ObjectId;
 
-import java.text.MessageFormat;
-import java.util.*;
+import java.awt.Color;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
-@DiscordCommand(name = "case", descriptionKey = "case.list.description")
-@RequirePermissions({ Permission.KICK_MEMBERS })
+@DiscordCommand(name = "case", descriptionKey = "case.description")
+@RequirePermissions({ Permission.MANAGE_SERVER })
 @Cooldown(seconds = 3)
 public class CaseCommand implements Command {
 
@@ -32,137 +30,133 @@ public class CaseCommand implements Command {
 
     @Override
     public SlashCommandData slashData(Locale locale) {
-        // Construimos /case con subcomandos list|show|delete
-        var data = Commands.slash("case", i18n.msg(locale, "case.list.description"))
+        return Commands.slash("case", i18n.msg(locale, "case.description"))
                 .addSubcommands(
                         new SubcommandData("list", i18n.msg(locale, "case.list.description"))
-                                .addOption(OptionType.INTEGER, "page", "Número de página (>=1)", false)
-                                .addOption(OptionType.USER, "user", "Filtrar por usuario objetivo", false)
-                                .addOption(OptionType.STRING, "type", "Tipo de caso", false,
-                                        Arrays.stream(i18n.msg(locale, "case.type").split(","))
-                                                .map(t -> new net.dv8tion.jda.api.interactions.commands.build.Command.Choice(t, t))
-                                                .toList()
-                                ),
+                                .addOption(OptionType.INTEGER, "page", i18n.msg(locale, "case.list.page"), false)
+                                .addOption(OptionType.USER,    "user", i18n.msg(locale, "case.list.user"), false)
+                                .addOption(OptionType.STRING,  "type", i18n.msg(locale, "case.list.type"), false),
                         new SubcommandData("show", i18n.msg(locale, "case.show.description"))
-                                .addOption(OptionType.STRING, "id", "ID del caso (ObjectId)", true),
+                                .addOption(OptionType.STRING, "id", "Mongo ObjectId (hex)", true),
                         new SubcommandData("delete", i18n.msg(locale, "case.delete.description"))
-                                .addOption(OptionType.STRING, "id", "ID del caso (ObjectId)", true)
+                                .addOption(OptionType.STRING, "id", "Mongo ObjectId (hex)", true),
+                        new SubcommandData("reason", i18n.msg(locale, "case.reason.description"))
+                                .addOption(OptionType.STRING, "id",     "Mongo ObjectId (hex)", true)
+                                .addOption(OptionType.STRING, "reason", "Nueva razón", true)
                 );
-
-        return data;
     }
 
     @Override
     public void execute(CommandContext ctx) {
-        var ev = ctx.event();
-        var sub = ev.getSubcommandName();
-        if (sub == null) sub = "list";
-
-        switch (sub) {
-            case "list" -> handleList(ctx);
-            case "show" -> handleShow(ctx);
-            case "delete" -> handleDelete(ctx);
-            default -> ctx.hook().sendMessage("Unknown subcommand").queue();
+        String sub = ctx.event().getSubcommandName();
+        try {
+            switch (sub) {
+                case "list"   -> handleList(ctx);
+                case "show"   -> handleShow(ctx);
+                case "delete" -> handleDelete(ctx);
+                case "reason" -> handleReason(ctx);
+                default -> ctx.hook().sendMessage("Unknown subcommand").queue();
+            }
+        } catch (Exception e) {
+            ctx.hook().sendMessage("❌ " + e.getMessage()).queue();
         }
     }
 
     private void handleList(CommandContext ctx) {
-        var ev = ctx.event();
-        int page = ev.getOption("page") != null ? Math.max(1, ev.getOption("page").getAsInt()) : 1;
-        String userId = null;
-        if (ev.getOption("user") != null) {
-            User u = ev.getOption("user").getAsUser();
-            if (u != null) userId = u.getId();
-        }
-        String typeStr = ev.getOption("type") != null ? ev.getOption("type").getAsString() : null;
-        ModerationType type = null;
+        String gid = ctx.guild().getId();
+        Integer pageOpt = ctx.event().getOption("page") != null ? ctx.event().getOption("page").getAsInt() : 1;
+        int page = pageOpt == null || pageOpt < 1 ? 1 : pageOpt;
+
+        String userId = ctx.event().getOption("user") != null ? ctx.event().getOption("user").getAsUser().getId() : null;
+        String typeStr = ctx.event().getOption("type") != null ? ctx.event().getOption("type").getAsString() : null;
+
+        ModerationType typeFilter = null;
         if (typeStr != null) {
-            try { type = ModerationType.valueOf(typeStr); } catch (IllegalArgumentException ignore) {}
+            try { typeFilter = ModerationType.valueOf(typeStr.toUpperCase()); } catch (Exception ignored) {}
         }
 
-        // Construir query dinámico
-        StringBuilder q = new StringBuilder("guildId = ?1");
-        List<Object> params = new ArrayList<>();
-        params.add(ctx.guild().getId());
-        int idx = 2;
-        if (userId != null) { q.append(" and targetId = ?").append(idx++); params.add(userId); }
-        if (type != null)  { q.append(" and type = ?").append(idx); params.add(type); }
+        List<ModerationCase> all = ModerationCase.<ModerationCase>find("guildId", gid).list();
 
-        PanacheQuery<ModerationCase> query =
-                ModerationCase.find("guildId", gid).page(page).list();
+        // filtros en memoria (simple y suficiente aquí)
+        if (userId != null) {
+            all = all.stream().filter(mc -> userId.equals(mc.targetId)).collect(Collectors.toList());
+        }
+        if (typeFilter != null) {
+            ModerationType tf = typeFilter;
+            all = all.stream().filter(mc -> mc.type == tf).collect(Collectors.toList());
+        }
 
-        long total = query.count();
-        int pageCount = (int) Math.max(1, Math.ceil(total / (double) PAGE_SIZE));
-        int pageIndex = Math.min(page - 1, pageCount - 1);
+        // orden por fecha desc
+        all.sort(Comparator.comparing((ModerationCase mc) -> mc.createdAt).reversed());
 
-        query.page(Page.of(pageIndex, PAGE_SIZE));
-        List<ModerationCase> list = query.list();
-
-        if (list.isEmpty()) {
+        int from = (page - 1) * PAGE_SIZE;
+        int to = Math.min(from + PAGE_SIZE, all.size());
+        if (from >= all.size()) {
             ctx.hook().sendMessage(i18n.msg(ctx.locale(), "case.list.empty")).queue();
             return;
         }
+        List<ModerationCase> slice = all.subList(from, to);
 
-        String filters = (userId != null ? "user=<@" + userId + ">" : "user=any")
-                + ", type=" + (type != null ? type : "any");
+        EmbedBuilder eb = new EmbedBuilder()
+                .setTitle(i18n.msg(ctx.locale(), "case.list.title") + " • p." + page)
+                .setColor(new Color(0x5865F2));
 
-        var eb = new EmbedBuilder()
-                .setColor(new Color(0x5865F2))
-                .setTitle(MessageFormat.format(i18n.msg(ctx.locale(), "case.list.title"), page, pageCount))
-                .setFooter(MessageFormat.format(i18n.msg(ctx.locale(), "case.footer"), filters));
-
-        int n = pageIndex * PAGE_SIZE;
-        for (ModerationCase mc : list) {
-            ++n;
-            String line = MessageFormat.format(
-                    i18n.msg(ctx.locale(), "case.item"),
-                    mc.id.toHexString(),
-                    mc.type,
-                    mc.targetId == null ? "—" : mc.targetId,
-                    mc.createdAt
-            );
-            String reason = mc.reason == null ? "" : " · " + mc.reason;
-            eb.addField("#" + n, line + reason, false);
+        StringBuilder sb = new StringBuilder();
+        for (ModerationCase mc : slice) {
+            String id = mc.id != null ? mc.id.toHexString() : "?";
+            String line = "`#" + id.substring(0, 6) + "` **" + mc.type + "** " +
+                    "<@" + mc.targetId + "> · " +
+                    i18n.msg(ctx.locale(), "case.by") + " <@" + mc.moderatorId + ">" +
+                    (mc.reason != null && !mc.reason.isBlank() ? " — " + mc.reason : "");
+            sb.append(line).append("\n");
         }
-
+        eb.setDescription(sb.toString());
         ctx.hook().sendMessageEmbeds(eb.build()).queue();
     }
 
     private void handleShow(CommandContext ctx) {
-        var ev = ctx.event();
-        String id = ev.getOption("id").getAsString();
-        if (!ObjectId.isValid(id)) {
-            ctx.hook().sendMessage(i18n.msg(ctx.locale(), "case.error.id")).queue();
-            return;
-        }
-        var mc = ModerationCase.findById(new ObjectId(id));
-        if (mc == null || !Objects.equals(mc.guildId, ctx.guild().getId())) {
-            ctx.hook().sendMessage(i18n.msg(ctx.locale(), "case.show.notfound")).queue();
-            return;
-        }
+        String idStr = ctx.event().getOption("id").getAsString();
+        ModerationCase mc = null;
+        try {
+            mc = ModerationCase.findById(new ObjectId(idStr));
+        } catch (Exception ignored) {}
+        if (mc == null) { ctx.hook().sendMessage(i18n.msg(ctx.locale(), "case.show.notfound")).queue(); return; }
 
-        var eb = new EmbedBuilder()
-                .setColor(new Color(0xFEE75C))
-                .setTitle("Case " + mc.id.toHexString())
-                .addField("Tipo", String.valueOf(mc.type), true)
-                .addField("Usuario", mc.targetId == null ? "—" : "<@" + mc.targetId + ">", true)
-                .addField("Moderador", mc.moderatorId == null ? "—" : "<@" + mc.moderatorId + ">", true)
-                .addField("Creado", mc.createdAt.toString(), true);
-        if (mc.expiresAt != null) eb.addField("Expira", mc.expiresAt.toString(), true);
-        eb.addField("Razón", mc.reason == null ? "—" : mc.reason, false);
+        EmbedBuilder eb = new EmbedBuilder()
+                .setTitle(i18n.msg(ctx.locale(), "case.show.title") + " #" + mc.id.toHexString())
+                .setColor(new Color(0x57F287))
+                .addField("Type", String.valueOf(mc.type), true)
+                .addField("Target", "<@" + mc.targetId + ">", true)
+                .addField("Moderator", "<@" + mc.moderatorId + ">", true)
+                .addField("Created", mc.createdAt != null ? mc.createdAt.toString() : "-", true)
+                .addField("Expires", mc.expiresAt != null ? mc.expiresAt.toString() : "-", true)
+                .addField("Reason", mc.reason != null ? mc.reason : "-", false);
 
         ctx.hook().sendMessageEmbeds(eb.build()).queue();
     }
 
     private void handleDelete(CommandContext ctx) {
-        var ev = ctx.event();
-        String id = ev.getOption("id").getAsString();
-        if (!ObjectId.isValid(id)) {
-            ctx.hook().sendMessage(i18n.msg(ctx.locale(), "case.error.id")).queue();
-            return;
-        }
-        boolean ok = ModerationCase.deleteById(new ObjectId(id));
-        ctx.hook().sendMessage(i18n.msg(ctx.locale(), ok ? "case.delete.ok" : "case.delete.notfound")).queue();
+        String idStr = ctx.event().getOption("id").getAsString();
+        boolean ok = false;
+        try {
+            ok = ModerationCase.deleteById(new ObjectId(idStr));
+        } catch (Exception ignored) {}
+        ctx.hook().sendMessage(ok
+                ? i18n.msg(ctx.locale(), "case.delete.ok")
+                : i18n.msg(ctx.locale(), "case.delete.notfound")).queue();
+    }
+
+    private void handleReason(CommandContext ctx) {
+        String idStr = ctx.event().getOption("id").getAsString();
+        String reason = ctx.event().getOption("reason").getAsString();
+
+        ModerationCase mc = null;
+        try { mc = ModerationCase.findById(new ObjectId(idStr)); } catch (Exception ignored) {}
+        if (mc == null) { ctx.hook().sendMessage(i18n.msg(ctx.locale(), "case.show.notfound")).queue(); return; }
+
+        mc.reason = reason;
+        mc.persistOrUpdate();
+        ctx.hook().sendMessage(i18n.msg(ctx.locale(), "case.reason.ok")).queue();
     }
 
     @Override public String name() { return "case"; }

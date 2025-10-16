@@ -19,7 +19,7 @@ public class ComponentListener extends ListenerAdapter {
     public void onGenericComponentInteractionCreate(GenericComponentInteractionCreateEvent event) {
         try {
             var guild = event.getGuild();
-            var cfg = GuildConfig.findById(guild.getId());
+            var cfg = GuildConfig.of(guild.getId());
             var locale = new Locale(cfg == null ? "es" : cfg.locale);
             var member = event.getMember();
             var ctx = new ComponentContext(event, event.getJDA(), guild, member, locale);
