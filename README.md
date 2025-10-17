@@ -49,14 +49,14 @@ It provides advanced moderation, configuration, and automation features, with a 
 ## 🧱 Architecture
 
 **Multy-Bot** is built with [Quarkus 3](https://quarkus.io/) and designed around a **hexagonal / layered architecture**:
-
+[
 multy-bot/
 ├── core/ # Command framework, events, context
 ├── features/ # Modular features (moderation, automod, greet, etc.)
 ├── infra/ # Logging, persistence, utilities, i18n
 ├── integration/ # Adapters (Discord, future integrations)
 ├── resources/ # i18n bundles, config, etc.
-└── main/ # Entry point (Quarkus app)
+└── main/ # Entry point (Quarkus app)](https://github.com/LCapi/Multy-Bot/tree/main)
 
 
 Each module (feature) is self-contained, with its own commands, listeners, and configuration models.  
