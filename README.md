@@ -49,8 +49,8 @@ It provides advanced moderation, configuration, and automation features, with a 
 ## 🧱 Architecture
 
 **Multy-Bot** is built with [Quarkus 3](https://quarkus.io/) and designed around a **hexagonal / layered architecture**:
-[
-multy-bot/
+
+[multy-bot/
 
 ├── core/ # Command framework, events, context
 
