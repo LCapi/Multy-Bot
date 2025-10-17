@@ -3,7 +3,7 @@
 # 🤖 Multy-Bot
 
 **Multy-Bot** is a modular, multi-platform automation system currently focused on **Discord**.  
-It provides advanced moderation, configuration, and automation features, with a clear architecture designed for future integration with other platforms (X/Twitter, Instagram, etc.).
+It provides advanced moderation, configuration, and automation features, with a clear architecture designed for future.
 
 ---
 
