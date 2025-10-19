@@ -1,5 +1,4 @@
-<img width="1024" height="1024" alt="image" src="https://github.com/user-attachments/assets/97e075b9-f8f3-41ac-902f-6973599cb214" />
-
+<img width="1024" height="1024" alt="ChatGPT Image 19 oct 2025, 20_58_50" src="https://github.com/user-attachments/assets/8b5b40fe-fe11-4c6f-8f1b-fa8a05a96818" />
 # 🤖 Multy-Bot
 
 **Multy-Bot** is a modular, multi-platform automation system currently focused on **Discord**.  
