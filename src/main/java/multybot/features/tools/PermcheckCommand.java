@@ -30,7 +30,7 @@ public class PermcheckCommand implements Command {
             Permission.MESSAGE_SEND,
             Permission.MESSAGE_HISTORY,
             Permission.MESSAGE_MANAGE,     // /purge
-            Permission.EMBED_LINKS,        // enviar embeds
+            Permission.MESSAGE_EMBED_LINKS,        // enviar embeds
             Permission.KICK_MEMBERS,
             Permission.BAN_MEMBERS,
             Permission.MODERATE_MEMBERS,   // timeouts
