@@ -2,13 +2,14 @@ package multybot;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import net.dv8tion.jda.api.hooks.ListenerAdapter;
+
+import multybot.core.CommandContext;
+import multybot.core.CommandRouter;
+
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.hooks.ListenerAdapter;
 
-import multybot.core.*;
-import multybot.infra.persistence.GuildConfig;
-
-import java.util.Locale;
+import java.util.Locale; // <-- import necesario
 
 @ApplicationScoped
 public class InteractionListener extends ListenerAdapter {
@@ -17,17 +18,18 @@ public class InteractionListener extends ListenerAdapter {
 
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
-        try {
-            String gid = event.getGuild().getId();
-            GuildConfig cfg = GuildConfig.findById(gid);
-            Locale locale = new Locale(cfg == null ? "es" : cfg.locale);
-            CommandContext ctx = new CommandContext(
-                    event, event.getJDA(), event.getGuild(), event.getMember(),
-                    locale, event.deferReply().setEphemeral(true).complete()
-            );
-            router.route(ctx);
-        } catch (Exception e) {
-            event.reply("⚠️ Error").setEphemeral(true).queue();
-        }
+        // Usa un Locale seguro; si luego quieres mapear DiscordLocale -> Locale, lo ajustamos
+        Locale locale = Locale.getDefault();
+
+        CommandContext ctx = new CommandContext(
+                event,
+                event.getJDA(),
+                event.getGuild(),
+                event.getMember(),
+                locale,
+                event.getHook()
+        );
+
+        router.route(ctx);
     }
 }

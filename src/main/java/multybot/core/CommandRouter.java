@@ -1,61 +1,94 @@
 package multybot.core;
 
-import java.text.MessageFormat;
-import java.util.*;
-import java.util.stream.Collectors;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Any;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
-import multybot.infra.I18n;
-import multybot.infra.PreconditionsExecutor;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
+
 import net.dv8tion.jda.api.JDA;
-import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.interactions.commands.build.CommandData;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class CommandRouter {
 
-    private final Map<String, Command> commands = new HashMap<>();
+    private static final Logger LOG = Logger.getLogger(CommandRouter.class);
 
-    @Inject Instance<Command> discovered;
-    @Inject I18n i18n;
-    @Inject PreconditionsExecutor preconditions;
+    @Inject @Any
+    Instance<Command> commandBeans;
 
-    public void discoverAndRegister(JDA jda, Locale locale) {
-        // Descubrir y registrar por CDI
-        for (Command cmd : discovered) {
-            DiscordCommand meta = cmd.getClass().getAnnotation(DiscordCommand.class);
-            if (meta == null) continue;
-            String name = meta.name();
-            commands.put(name, cmd);
+    @ConfigProperty(name = "bot.dev.guild-id", defaultValue = "")
+    String devGuildId;
+
+    private final Map<String, Command> byName = new HashMap<>();
+
+    @PostConstruct
+    void init() {
+        for (Command c : commandBeans) {
+            byName.put(c.name(), c);
         }
-        // Construir slash por idioma base (global)
-        List<SlashCommandData> defs = commands.entrySet().stream().map(e -> {
-            Command c = e.getValue();
-            DiscordCommand meta = c.getClass().getAnnotation(DiscordCommand.class);
-            String desc = i18n.msg(locale, meta.descriptionKey());
-            SlashCommandData data = c.slashData(locale);
-            data.setDescription(desc);
-            return data;
-        }).collect(Collectors.toList());
-        jda.updateCommands().addCommands(defs).queue();
+        LOG.infof("CommandRouter: cargados %d comandos -> %s", byName.size(), byName.keySet());
     }
 
-    public void route(CommandContext ctx) throws Exception {
+    /** Lista inmutable de comandos para cosas como /help. */
+    public Collection<Command> commands() {
+        return Collections.unmodifiableCollection(byName.values());
+    }
+
+    /** Enruta al comando correspondiente. */
+    public void route(CommandContext ctx) {
         String name = ctx.event().getName();
-        Command cmd = commands.get(name);
-        if (cmd == null) return;
-        var failure = preconditions.evaluate(cmd, ctx);
-        if (failure.isPresent()) {
-            String msg = failure.get();
-            ctx.event().reply(msg).setEphemeral(true).queue();
+        Command cmd = byName.get(name);
+        if (cmd == null) {
+            ctx.event().reply("Unknown command: `" + name + "`").setEphemeral(true).queue();
             return;
         }
-        cmd.execute(ctx);
+        try {
+            cmd.execute(ctx);
+        } catch (Exception e) {
+            LOG.errorf(e, "Error ejecutando comando %s", name);
+            ctx.event().reply("Internal error running this command.").setEphemeral(true).queue();
+        }
     }
 
-    public String help(Locale locale) {
-        return commands.keySet().stream().sorted()
-                .map(n -> "• /" + n)
-                .collect(Collectors.joining("\n"));
+    /** Registro de comandos aceptando Locale explícito (lo que te pedían CommandRegistrar/ReadyListener). */
+    public void discoverAndRegister(JDA jda, java.util.Locale locale) {
+        // Cada Command entrega su propio SlashCommandData vía slashData(locale)
+        List<CommandData> data = byName.values().stream()
+                .map(c -> c.slashData(locale))
+                .collect(Collectors.toList());
+
+        if (devGuildId != null && !devGuildId.isBlank()) {
+            Guild g = jda.getGuildById(devGuildId);
+            if (g == null) {
+                LOG.warnf("No se encontró el GUILD con id=%s. Registraré GLOBAL.", devGuildId);
+                jda.updateCommands().addCommands(data).queue(
+                        _ok -> LOG.infof("Registrados %d comandos GLOBAL.", data.size()),
+                        err -> LOG.error("Fallo registrando comandos GLOBAL", err)
+                );
+            } else {
+                g.updateCommands().addCommands(data).queue(
+                        _ok -> LOG.infof("Registrados %d comandos en guild %s (%s).",
+                                data.size(), g.getName(), g.getId()),
+                        err -> LOG.errorf(err, "Fallo registrando comandos en guild %s", g.getId())
+                );
+            }
+        } else {
+            jda.updateCommands().addCommands(data).queue(
+                    _ok -> LOG.infof("Registrados %d comandos GLOBAL.", data.size()),
+                    err -> LOG.error("Fallo registrando comandos GLOBAL", err)
+            );
+        }
+    }
+
+    /** Sobrecarga por comodidad (usa EN por defecto). */
+    public void discoverAndRegister(JDA jda) {
+        discoverAndRegister(jda, java.util.Locale.ENGLISH);
     }
 }

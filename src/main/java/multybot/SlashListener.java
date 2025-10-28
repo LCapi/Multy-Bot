@@ -1,6 +1,5 @@
 package multybot;
 
-import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
@@ -8,9 +7,8 @@ import jakarta.inject.Inject;
 import multybot.core.Command;
 import multybot.core.CommandContext;
 
-import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
-import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.dv8tion.jda.api.hooks.ListenerAdapter;
 
 import org.jboss.logging.Logger;
 
@@ -18,38 +16,44 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Resuelve y ejecuta comandos de barra.
+ */
 @ApplicationScoped
 public class SlashListener extends ListenerAdapter {
 
     private static final Logger LOG = Logger.getLogger(SlashListener.class);
 
-    @Inject Instance<Command> commandBeans; // todos los @DiscordCommand
-    private final Map<String, Command> commands = new HashMap<>();
+    private final Map<String, Command> byName = new HashMap<>();
 
-    @PostConstruct
-    void init() {
-        for (Command c : commandBeans) {
-            commands.put(c.name(), c);
+    @Inject
+    public SlashListener(Instance<Command> commandsProvider) {
+        // Indexar por nombre para resolución O(1)
+        for (Command c : commandsProvider) {
+            byName.put(c.name(), c);
         }
-        LOG.infof("SlashListener inicializado. Comandos registrados: %s", commands.keySet());
+        LOG.infof("SlashListener inicializado. Comandos registrados: %s", byName.keySet());
     }
 
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
+        final String name = event.getName();
+        final Command cmd = byName.get(name);
+
+        if (cmd == null) {
+            event.reply("Unknown command: " + name).setEphemeral(true).queue();
+            return;
+        }
+
+        // Locale por guild (impl tuya; si no hay, EN por defecto)
+        Locale locale = Locale.ENGLISH;
         try {
-            final String name = event.getName();
-            final Command cmd = commands.get(name);
-            if (cmd == null) {
-                event.reply("Unknown command: " + name).setEphemeral(true).queue();
-                return;
-            }
+            // Si tienes GuildConfig y un I18nService, resuélvelo aquí:
+            // locale = i18nService.resolveLocale(event.getGuild());
+        } catch (Exception ignored) {}
 
-            // JDA 5: NO existe queueAndWait(). Obtener el hook de forma bloqueante:
-            InteractionHook hook = event.deferReply().submit().join();
-
-            // Locale por defecto; cuando tengas GuildConfig, cámbialo
-            Locale locale = Locale.ENGLISH;
-
+        // Defer para tener InteractionHook y no bloquear
+        event.deferReply().queue(hook -> {
             CommandContext ctx = new CommandContext(
                     event,
                     event.getJDA(),
@@ -58,18 +62,14 @@ public class SlashListener extends ListenerAdapter {
                     locale,
                     hook
             );
-
-            cmd.execute(ctx);
-
-        } catch (Exception e) {
-            LOG.error("Error manejando slash interaction", e);
-            if (event.isAcknowledged()) {
-                event.getHook().sendMessage("Something went wrong while executing the command.")
-                        .setEphemeral(true).queue();
-            } else {
-                event.reply("Something went wrong while executing the command.")
-                        .setEphemeral(true).queue();
+            try {
+                cmd.handle(ctx);
+            } catch (Exception ex) {
+                LOG.errorf(ex, "Error ejecutando comando /%s", name);
+                hook.sendMessage("An error occurred while executing this command.").queue();
             }
-        }
+        }, error -> {
+            LOG.errorf(error, "Error haciendo deferReply en /%s", name);
+        });
     }
 }

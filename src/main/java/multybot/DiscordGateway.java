@@ -17,13 +17,15 @@ public class DiscordGateway {
     private static final Logger LOG = Logger.getLogger(DiscordGateway.class);
 
     @ConfigProperty(name = "discord.token", defaultValue = "")
-    String token; // mapeado desde DISCORD_TOKEN
+    String token;
 
     @ConfigProperty(name = "bot.gateway.enabled", defaultValue = "true")
     boolean enabled;
 
-    @Inject SlashListener slashListener;
-    @Inject CommandRegistrar commandRegistrar; // ⬅ también lo añadimos como listener
+    // Listeners opcionales (regístralos aquí si no lo haces en otro sitio)
+    @Inject CommandRegistrar commandRegistrar;
+    @Inject InteractionListener interactionListener;
+    @Inject ReadyListener readyListener; // si lo usas
 
     private JDA jda;
     public JDA jda() { return jda; }
@@ -35,15 +37,15 @@ public class DiscordGateway {
             return;
         }
 
+        LOG.info("Conectando a Discord...");
         jda = JDABuilder.createDefault(token)
                 .addEventListeners(
-                        slashListener,
-                        commandRegistrar // ⬅ se registrará al recibir ReadyEvent
+                        commandRegistrar,   // emite onReady → registra slash
+                        interactionListener,
+                        readyListener       // si tienes uno
                 )
                 .build();
 
-        LOG.info("Conectando a Discord...");
-        jda.awaitReady();
         LOG.info("JDA listo");
     }
 }
