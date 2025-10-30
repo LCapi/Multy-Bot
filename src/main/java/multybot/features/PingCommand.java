@@ -1,30 +1,23 @@
 package multybot.features;
 
-import java.util.Locale;
-import multybot.core.*;
-import multybot.infra.I18n;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
+import multybot.core.Command;
+import multybot.core.CommandContext;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 
-@ApplicationScoped
-@DiscordCommand(name="ping", descriptionKey="ping.description")
-@Cooldown(seconds=5)
-public class PingCommand implements Command {
+import java.util.Locale;
 
-    @Inject I18n i18n;
+@ApplicationScoped
+public class PingCommand implements Command {
 
     @Override
     public SlashCommandData slashData(Locale locale) {
-        return Commands.slash("ping", i18n.msg(locale, "ping.description"));
+        return Commands.slash("ping", "Measure gateway latency");
     }
 
     @Override
     public void execute(CommandContext ctx) {
-        long ws = ctx.jda().getGatewayPing();
-        ctx.hook().sendMessage(i18n.msg(ctx.locale(), "ping.reply", ws)).queue();
+        ctx.reply("Pong! " + ctx.jda().getGatewayPing() + " ms");
     }
-
-    @Override public String name() { return "ping"; }
 }

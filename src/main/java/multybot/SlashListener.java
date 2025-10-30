@@ -37,39 +37,23 @@ public class SlashListener extends ListenerAdapter {
 
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
-        final String name = event.getName();
-        final Command cmd = byName.get(name);
+        LOG.infof("Slash: /%s by %s in %s", event.getName(), event.getUser().getAsTag(),
+                event.getChannel().getName());
 
-        if (cmd == null) {
-            event.reply("Unknown command: " + name).setEphemeral(true).queue();
+        // Si el comando es rápido (ping, help simple), responde directo:
+        if (isInstantCommand(event.getName())) {
+            handleInstant(event); // dentro hará event.reply(...).queue()
             return;
         }
 
-        // Locale por guild (impl tuya; si no hay, EN por defecto)
-        Locale locale = Locale.ENGLISH;
+        // Para el resto, ACK inmediato y luego trabajas
+        event.deferReply().queue(); // o setEphemeral(true) si procede
         try {
-            // Si tienes GuildConfig y un I18nService, resuélvelo aquí:
-            // locale = i18nService.resolveLocale(event.getGuild());
-        } catch (Exception ignored) {}
-
-        // Defer para tener InteractionHook y no bloquear
-        event.deferReply().queue(hook -> {
-            CommandContext ctx = new CommandContext(
-                    event,
-                    event.getJDA(),
-                    event.getGuild(),
-                    event.getMember(),
-                    locale,
-                    hook
-            );
-            try {
-                cmd.handle(ctx);
-            } catch (Exception ex) {
-                LOG.errorf(ex, "Error ejecutando comando /%s", name);
-                hook.sendMessage("An error occurred while executing this command.").queue();
-            }
-        }, error -> {
-            LOG.errorf(error, "Error haciendo deferReply en /%s", name);
-        });
+            route(event); // tu lógica: ejecuta el comando y luego usa event.getHook() para responder
+        } catch (Exception e) {
+            LOG.error("Error ejecutando comando: " + event.getName(), e);
+            event.getHook().editOriginal("Ha ocurrido un error inesperado.").queue();
+        }
     }
+
 }

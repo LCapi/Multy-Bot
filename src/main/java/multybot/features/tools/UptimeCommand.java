@@ -1,45 +1,34 @@
-package multybot.features.tools;
+package multybot.features;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
-import multybot.core.*;
-import multybot.infra.AppInfo;
-import multybot.infra.I18n;
-import net.dv8tion.jda.api.EmbedBuilder;
+import multybot.core.Command;
+import multybot.core.CommandContext;
+import net.dv8tion.jda.api.interactions.commands.build.Commands;
+import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 
-import java.awt.*;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Locale;
 
 @ApplicationScoped
-@DiscordCommand(name = "uptime", descriptionKey = "uptime.description")
-@Cooldown(seconds = 5)
 public class UptimeCommand implements Command {
 
-    @Inject I18n i18n;
-    @Inject AppInfo app;
-
-    private static final DateTimeFormatter FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
+    private final Instant start = Instant.now();
 
     @Override
-    public net.dv8tion.jda.api.interactions.commands.build.SlashCommandData slashData(Locale locale) {
-        return net.dv8tion.jda.api.interactions.commands.build.Commands
-                .slash("uptime", i18n.msg(locale, "uptime.description"));
+    public SlashCommandData slashData(Locale locale) {
+        return Commands.slash("uptime", "Show bot uptime");
+    }
+
+    @Override
+    public boolean isLongRunning() {
+        return true; // Forzamos defer para ejemplificar
     }
 
     @Override
     public void execute(CommandContext ctx) {
-        var started = app.startedAt().atZone(ZoneId.systemDefault());
-        var eb = new EmbedBuilder()
-                .setTitle(i18n.msg(ctx.locale(), "uptime.title"))
-                .setColor(new Color(0x5865F2))
-                .addField("Started", FMT.format(started), true)
-                .addField("Uptime", multybot.infra.AppInfo.human(app.uptime()), true);
-
-        ctx.hook().sendMessageEmbeds(eb.build()).queue();
+        var d = Duration.between(start, Instant.now());
+        var text = String.format("Uptime: %dh %dm %ds", d.toHours(), d.toMinutesPart(), d.toSecondsPart());
+        ctx.reply(text); // Como hubo defer, edita el original
     }
-
-    @Override public String name() { return "uptime"; }
 }

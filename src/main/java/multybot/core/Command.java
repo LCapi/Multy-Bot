@@ -1,26 +1,18 @@
 package multybot.core;
 
+import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import java.util.Locale;
 
-import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
-
-/**
- * Interfaz común para slash-commands.
- * Mantiene execute(..) por compatibilidad y añade handle(..) como punto único de entrada.
- */
 public interface Command {
 
-    /** nombre del comando (sin barra) */
-    String name();
-
-    /** definición del slash-command (por locale base) */
+    // Definición del slash command (nombre, descripción, opciones…)
     SlashCommandData slashData(Locale locale);
 
-    /** Implementado en tus clases de comando actuales (si ya existe, no toques esas clases). */
+    // Ejecución del comando
     void execute(CommandContext ctx) throws Exception;
 
-    /** Punto de entrada unificado; por defecto delega a execute(..). */
-    default void handle(CommandContext ctx) throws Exception {
-        execute(ctx);
+    // Por defecto, los comandos son rápidos. Sobrescribe en comandos lentos (I/O, APIs, DB…)
+    default boolean isLongRunning() {
+        return false;
     }
 }
