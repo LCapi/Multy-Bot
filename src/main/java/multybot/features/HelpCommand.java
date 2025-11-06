@@ -18,30 +18,42 @@ public class HelpCommand implements Command {
     @Inject
     CommandRouter router;
 
+    // Firma nueva del contrato
     @Override
-    public String name() {
+    public String name(Locale locale) {
         return "help";
     }
 
     @Override
     public String description(Locale locale) {
-        return "Muestra la lista de comandos";
+        return switch (locale.getLanguage()) {
+            case "es" -> "Muestra la lista de comandos";
+            default -> "Show the list of commands";
+        };
     }
 
     @Override
     public SlashCommandData slashData(Locale locale) {
-        return Commands.slash(name(), description(locale));
+        return Commands.slash(name(locale), description(locale));
     }
 
     @Override
     public void execute(CommandContext ctx) {
-        var list = router.commands().stream()
-                .sorted(Comparator.comparing(Command::name))
-                .map(c -> "/" + c.name() + " – " + c.description(ctx.locale()))
+        Locale locale = ctx.locale();
+
+        String list = router.commands().stream()
+                // Comparator usando el locale
+                .sorted(Comparator.comparing(c -> c.name(locale)))
+                .map(c -> "/" + c.name(locale) + " – " + c.description(locale))
                 .collect(Collectors.joining("\n"));
 
-        if (list.isEmpty()) list = "No hay comandos registrados.";
+        if (list.isEmpty()) {
+            list = (locale.getLanguage().equals("es"))
+                    ? "No hay comandos registrados."
+                    : "No commands registered.";
+        }
 
-        ctx.hook().editOriginal(list).queue();
+        // Respuesta segura (si no está acknowledged, reply; si lo está, hook.sendMessage)
+        ctx.reply(list);
     }
 }

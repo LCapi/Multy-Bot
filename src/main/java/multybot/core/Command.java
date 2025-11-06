@@ -1,33 +1,21 @@
 package multybot.core;
 
-import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
-
 import java.util.Locale;
+import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 
 public interface Command {
 
-    /** Definición del slash command (localizable) */
+    // NUEVO contrato con locale
+    String name(Locale locale);
+    String description(Locale locale);
     SlashCommandData slashData(Locale locale);
 
-    /** Lógica principal del comando */
+    // COMPAT: antiguos llamadores que no pasan Locale
+    default String name() { return name(Locale.ENGLISH); }
+    default String description() { return description(Locale.ENGLISH); }
+    default SlashCommandData slashData() { return slashData(Locale.ENGLISH); }
+
+    default boolean isLongRunning() { return false; }
+
     void execute(CommandContext ctx) throws Exception;
-
-    /** Descripción localizable (default para no romper comandos existentes) */
-    default String description(Locale locale) {
-        return "No description";
-    }
-
-    /** Nombre del comando: si no lo das, se infiere de slashData(...) */
-    default String name(Locale locale) {
-        try {
-            return slashData(locale).getName();
-        } catch (Exception ignored) {
-            return "command";
-        }
-    }
-
-    /** Para comandos que tardan, nos permite deferir automáticamente */
-    default boolean isLongRunning() {
-        return false;
-    }
 }

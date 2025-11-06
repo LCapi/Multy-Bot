@@ -9,6 +9,10 @@ import net.dv8tion.jda.api.interactions.InteractionHook;
 
 import java.util.Locale;
 
+/**
+ * Contexto único por interacción SlashCommand.
+ * Permite acceso seguro a JDA, Guild, Member y respuesta encapsulada.
+ */
 public class CommandContext {
 
     private final SlashCommandInteractionEvent event;
@@ -19,62 +23,73 @@ public class CommandContext {
         this.locale = locale;
     }
 
-    /** Alias para compatibilidad con código antiguo */
-    public static CommandContext fromEvent(SlashCommandInteractionEvent event) {
-        return from(event);
-    }
-
-    /** Fábrica única */
+    /** Fábrica principal */
     public static CommandContext from(SlashCommandInteractionEvent event) {
         return new CommandContext(event, resolveLocale(event));
     }
 
+    /** Alias de compatibilidad */
+    public static CommandContext fromEvent(SlashCommandInteractionEvent event) {
+        return from(event);
+    }
+
+    /** Resolver locale en orden: usuario → guild → default */
     private static Locale resolveLocale(SlashCommandInteractionEvent e) {
-        // 1) Locale del usuario si existe
         DiscordLocale user = e.getUserLocale();
         if (user != null) return Locale.forLanguageTag(user.getLocale());
 
-        // 2) Locale de la guild si existe
         Guild g = e.getGuild();
         if (g != null && g.getLocale() != null) {
             return Locale.forLanguageTag(g.getLocale().getLocale());
         }
 
-        // 3) Fallback
         return Locale.getDefault();
     }
 
-    /* ----------------- Getters de bajo nivel ----------------- */
+    /* ----------------- Getters de contexto ----------------- */
+
     public SlashCommandInteractionEvent event() { return event; }
     public Locale locale() { return locale; }
     public JDA jda() { return event.getJDA(); }
     public Guild guild() { return event.getGuild(); }
     public Member member() { return event.getMember(); }
 
-    /* ----------------- Helpers de respuesta ------------------ */
+    /* ----------------- Helpers de respuesta ----------------- */
 
-    /** Respuesta rápida normal */
+    /**
+     * Responde de forma segura. Si la interacción ya fue reconocida,
+     * se usa el hook; si no, hace reply normal o deferReply automático.
+     */
     public void reply(String content) {
-        event.reply(content).queue();
+        if (event.isAcknowledged()) {
+            // ya fue deferReply() o reply()
+            hook().sendMessage(content).queue();
+        } else {
+            event.reply(content).queue();
+        }
     }
 
     /** Respuesta efímera */
     public void replyEphemeral(String content) {
-        event.reply(content).setEphemeral(true).queue();
+        if (event.isAcknowledged()) {
+            hook().sendMessage(content).setEphemeral(true).queue();
+        } else {
+            event.reply(content).setEphemeral(true).queue();
+        }
     }
 
-    /** Asegura que el interaction está reconocido y devuelve el hook */
+    /** Asegura que el interaction esté reconocido y devuelve el hook */
     public InteractionHook hook() {
         ensureAcknowledged();
         return event.getHook();
     }
 
-    /** Envío por hook (tras defer o primer reply) */
+    /** Enviar mensaje adicional tras defer/reply */
     public void followup(String content) {
         hook().sendMessage(content).queue();
     }
 
-    /** Si aún no se reconoció, hacemos deferReply() para no caducar */
+    /** Si no se ha reconocido aún, hacer deferReply() */
     public void ensureAcknowledged() {
         if (!event.isAcknowledged()) {
             event.deferReply().queue();

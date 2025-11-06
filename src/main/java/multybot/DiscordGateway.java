@@ -57,7 +57,7 @@ public class DiscordGateway {
     }
 
     /**
-     * Arranque del gateway: engancha listeners y espera a READY para dejar todo estable.
+     * Arranque del gateway: engancha listeners y espera a READY para dejar tod0 estable.
      */
     @PostConstruct
     void start() {

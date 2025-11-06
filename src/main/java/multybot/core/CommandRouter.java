@@ -14,16 +14,19 @@ public class CommandRouter {
     private static final Logger LOG = Logger.getLogger(CommandRouter.class);
 
     @Inject
-    List<Command> commands = Collections.emptyList();
+    List<Command> commands; // <-- sin inicializar, CDI lo inyecta
 
     public List<Command> commands() {
         return commands;
     }
 
-    public Optional<Command> find(String name) {
+    /** Búsqueda teniendo en cuenta el Locale actual (los nombres pueden depender del idioma) */
+    public Optional<Command> find(String name, Locale locale) {
         if (name == null) return Optional.empty();
         for (var c : commands) {
-            if (name.equalsIgnoreCase(c.name())) return Optional.of(c);
+            if (name.equalsIgnoreCase(c.name(locale))) {
+                return Optional.of(c);
+            }
         }
         return Optional.empty();
     }
@@ -57,17 +60,23 @@ public class CommandRouter {
 
     /** Ejecuta el comando correspondiente a la interacción ya deferida en CommandContext */
     public void route(CommandContext ctx) {
+        var locale = ctx.locale();
         var name = ctx.event().getName();
-        find(name).ifPresentOrElse(
+
+        find(name, locale).ifPresentOrElse(
                 c -> {
                     try {
                         c.execute(ctx);
                     } catch (Exception e) {
                         LOG.errorf(e, "Fallo ejecutando /%s", name);
-                        ctx.hook().editOriginal("Ocurrió un error ejecutando el comando.").queue();
+                        ctx.reply(locale.getLanguage().equals("es")
+                                ? "Ocurrió un error ejecutando el comando."
+                                : "An error occurred while executing the command.");
                     }
                 },
-                () -> ctx.hook().editOriginal("Comando no reconocido.").queue()
+                () -> ctx.reply(locale.getLanguage().equals("es")
+                        ? "Comando no reconocido."
+                        : "Unknown command.")
         );
     }
 }

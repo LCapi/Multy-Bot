@@ -1,6 +1,5 @@
 package multybot.core;
 
-import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.events.interaction.component.GenericComponentInteractionCreateEvent;
@@ -11,24 +10,18 @@ import java.util.Locale;
 
 public record ComponentContext(
         GenericComponentInteractionCreateEvent event,
-        JDA jda,
         Guild guild,
         Member member,
         Locale locale
 ) {
     public static ComponentContext from(GenericComponentInteractionCreateEvent e) {
         Locale loc = resolveLocale(e);
-        return new ComponentContext(e, e.getJDA(), e.getGuild(), e.getMember(), loc);
+        return new ComponentContext(e, e.getGuild(), e.getMember(), loc);
     }
 
     private static Locale resolveLocale(GenericComponentInteractionCreateEvent e) {
         DiscordLocale user = e.getUserLocale();
-        if (user != null) return Locale.forLanguageTag(user.getLocale());
-        Guild g = e.getGuild();
-        if (g != null && g.getLocale() != null) {
-            return Locale.forLanguageTag(g.getLocale().getLocale());
-        }
-        return Locale.getDefault();
+        return Locale.forLanguageTag(user.getLocale());
     }
 
     public InteractionHook hook() {
