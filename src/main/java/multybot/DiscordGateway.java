@@ -1,43 +1,91 @@
 package multybot;
 
-import io.quarkus.runtime.StartupEvent;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Observes;
+import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
+
 import org.jboss.logging.Logger;
+
+import io.quarkus.runtime.ShutdownEvent;
+import io.quarkus.runtime.Startup;
+
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.entities.Activity;
+import net.dv8tion.jda.api.requests.GatewayIntent;
+
+import multybot.core.CommandRegistrar;
+import multybot.core.InteractionListener;
 
 @ApplicationScoped
+@Startup
 public class DiscordGateway {
+
     private static final Logger LOG = Logger.getLogger(DiscordGateway.class);
 
-    @ConfigProperty(name = "discord.token", defaultValue = "")
-    String token;
-
-    @ConfigProperty(name = "bot.gateway.enabled", defaultValue = "true")
-    boolean enabled;
-
-    @Inject CommandRegistrar registrar;
-    @Inject InteractionListener interactions;
+    @ConfigProperty(name = "bot.token")
+    String botToken;
 
     private JDA jda;
-    public JDA jda() { return jda; }
 
-    void onStart(@Observes StartupEvent ev) throws Exception {
-        if (!enabled || token.isBlank()) {
-            LOG.warnf("DiscordGateway deshabilitado (%s). Arranca sin Discord.",
-                    enabled ? "faltó DISCORD_TOKEN" : "bot.gateway.enabled=false");
-            return;
+    // Listeners CDI-inyectados
+    @Inject CommandRegistrar commandRegistrar;
+    @Inject InteractionListener interactionListener;
+
+    /**
+     * Productor JDA para que esté disponible vía CDI en toda la app.
+     * No registres listeners aquí para mantener una responsabilidad clara.
+     */
+    @Produces
+    @ApplicationScoped
+    public JDA produceJda() throws Exception {
+        LOG.info("Construyendo JDA…");
+        JDABuilder builder = JDABuilder.createDefault(botToken)
+                .enableIntents(
+                        GatewayIntent.GUILD_MEMBERS,
+                        GatewayIntent.GUILD_MESSAGES,
+                        GatewayIntent.MESSAGE_CONTENT,
+                        GatewayIntent.GUILD_MODERATION
+                )
+                .setActivity(Activity.playing("Multy-Bot"));
+
+        return builder.build(); // No bloquea; el READY llegará por evento
+    }
+
+    /**
+     * Arranque del gateway: engancha listeners y espera a READY para dejar todo estable.
+     */
+    @PostConstruct
+    void start() {
+        try {
+            // Obtiene la instancia producida por CDI
+            this.jda = produceJda();
+
+            // Registra listeners de la app (inyectados por CDI)
+            jda.addEventListener(commandRegistrar, interactionListener);
+
+            // Espera a que Discord marque READY (evita carreras en registro de comandos)
+            jda.awaitReady();
+            LOG.info("JDA Ready y listeners registrados.");
+        } catch (Exception e) {
+            LOG.error("Error arrancando DiscordGateway", e);
+            throw new IllegalStateException("No se pudo iniciar JDA", e);
         }
+    }
 
-        jda = JDABuilder.createDefault(token)
-                .addEventListeners(registrar, interactions)
-                .build();
+    @PreDestroy
+    void stop() {
+        if (jda != null) {
+            LOG.info("Apagando JDA…");
+            jda.shutdownNow();
+        }
+    }
 
-        LOG.info("Conectando a Discord...");
-        jda.awaitReady();
-        LOG.info("JDA listo");
+    void onStop(@SuppressWarnings("unused") ShutdownEvent ev) {
+        stop();
     }
 }
