@@ -6,35 +6,31 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import org.jboss.logging.Logger;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 
 @ApplicationScoped
 public class CommandRouter {
     private static final Logger LOG = Logger.getLogger(CommandRouter.class);
 
+    /** Quarkus inyecta todos los beans que implementen Command (@ApplicationScoped). */
     @Inject
-    List<Command> commands; // <-- sin inicializar, CDI lo inyecta
+    List<Command> commands;
 
-    public List<Command> commands() {
-        return commands;
-    }
+    public List<Command> commands() { return commands; }
 
-    /** Búsqueda teniendo en cuenta el Locale actual (los nombres pueden depender del idioma) */
-    public Optional<Command> find(String name, Locale locale) {
+    public Optional<Command> find(String name) {
         if (name == null) return Optional.empty();
-        for (var c : commands) {
-            if (name.equalsIgnoreCase(c.name(locale))) {
-                return Optional.of(c);
-            }
-        }
-        return Optional.empty();
+        return commands.stream().filter(c -> name.equalsIgnoreCase(c.name())).findFirst();
     }
 
     public List<SlashCommandData> slashData(Locale locale) {
         return commands.stream()
+                .sorted(Comparator.comparing(Command::name))
                 .map(c -> c.slashData(locale))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /** Registro en una GUILD concreta (dev) */
@@ -58,25 +54,19 @@ public class CommandRouter {
         );
     }
 
-    /** Ejecuta el comando correspondiente a la interacción ya deferida en CommandContext */
+    /** Ejecuta el comando correspondiente a la interacción (ya deferida si hace falta). */
     public void route(CommandContext ctx) {
-        var locale = ctx.locale();
         var name = ctx.event().getName();
-
-        find(name, locale).ifPresentOrElse(
+        find(name).ifPresentOrElse(
                 c -> {
                     try {
                         c.execute(ctx);
                     } catch (Exception e) {
                         LOG.errorf(e, "Fallo ejecutando /%s", name);
-                        ctx.reply(locale.getLanguage().equals("es")
-                                ? "Ocurrió un error ejecutando el comando."
-                                : "An error occurred while executing the command.");
+                        ctx.hook().editOriginal("Ocurrió un error ejecutando el comando.").queue();
                     }
                 },
-                () -> ctx.reply(locale.getLanguage().equals("es")
-                        ? "Comando no reconocido."
-                        : "Unknown command.")
+                () -> ctx.hook().editOriginal("Comando no reconocido.").queue()
         );
     }
 }
