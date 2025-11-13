@@ -5,7 +5,9 @@ import java.util.Locale;
 
 public interface Command {
     String name();                                // id del slash (/ping)
-    String description(Locale locale);            // i18n
+    default String description(Locale locale) {
+        return "No description configured.";
+    }// i18n
     SlashCommandData slashData(Locale locale);    // definición del slash
     void execute(CommandContext ctx);             // lógica
 }
