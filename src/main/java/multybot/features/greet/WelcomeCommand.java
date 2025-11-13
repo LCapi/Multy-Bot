@@ -14,12 +14,13 @@ import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 
 import java.awt.Color;
 import java.util.Locale;
+import java.util.Objects;
 
 @ApplicationScoped
 @DiscordCommand(name = "welcome", descriptionKey = "welcome.set.description")
 @RequirePermissions({ Permission.MANAGE_SERVER })
-@Cooldown(seconds = 5)
-public class WelcomeCommand implements Command {
+@Cooldown()
+public class WelcomeCommand extends AbstractCommand {
 
     @Inject I18n i18n;
 
@@ -40,6 +41,10 @@ public class WelcomeCommand implements Command {
     @Override
     public void execute(CommandContext ctx) {
         String sub = ctx.event().getSubcommandName();
+        if (sub == null) {
+            ctx.replyEphemeral("Debes especificar un subcomando.");
+            return;
+        }
         switch (sub) {
             case "set-channel" -> setChannel(ctx);
             case "set-message" -> setMessage(ctx);
@@ -50,7 +55,7 @@ public class WelcomeCommand implements Command {
     }
 
     private void setChannel(CommandContext ctx) {
-        String channelId = ctx.event().getOption("channel").getAsChannel().getId(); // JDA 5: usamos id String
+        String channelId = Objects.requireNonNull(ctx.event().getOption("channel")).getAsChannel().getId(); // JDA 5: usamos id String
         GreetConfig cfg = GreetConfig.of(ctx.guild().getId());
         cfg.welcomeChannelId = channelId;
         cfg.persistOrUpdate();
@@ -58,7 +63,7 @@ public class WelcomeCommand implements Command {
     }
 
     private void setMessage(CommandContext ctx) {
-        String msg = ctx.event().getOption("message").getAsString();
+        String msg = Objects.requireNonNull(ctx.event().getOption("message")).getAsString();
         GreetConfig cfg = GreetConfig.of(ctx.guild().getId());
         cfg.welcomeMessage = msg;
         cfg.persistOrUpdate();
@@ -66,7 +71,7 @@ public class WelcomeCommand implements Command {
     }
 
     private void setImage(CommandContext ctx) {
-        String url = ctx.event().getOption("url").getAsString();
+        String url = Objects.requireNonNull(ctx.event().getOption("url")).getAsString();
         GreetConfig cfg = GreetConfig.of(ctx.guild().getId());
         cfg.welcomeImageUrl = url;
         cfg.persistOrUpdate();
@@ -76,12 +81,13 @@ public class WelcomeCommand implements Command {
     private void test(CommandContext ctx) {
         GreetConfig cfg = GreetConfig.of(ctx.guild().getId());
         if (cfg.welcomeChannelId == null || cfg.welcomeChannelId.isBlank()) {
-            ctx.hook().sendMessage(i18n.msg(ctx.locale(), "welcome.test.nochannel")).queue();
+            ctx.replyEphemeral(i18n.msg(ctx.locale(), "welcome.test.nochannel"));
             return;
         }
-        TextChannel ch = ctx.guild().getTextChannelById(parseLongSafe(cfg.welcomeChannelId)); // JDA 5: long id
+
+        TextChannel ch = ctx.guild().getTextChannelById(cfg.welcomeChannelId);
         if (ch == null) {
-            ctx.hook().sendMessage(i18n.msg(ctx.locale(), "welcome.test.nochannel")).queue();
+            ctx.replyEphemeral(i18n.msg(ctx.locale(), "welcome.test.nochannel"));
             return;
         }
 
@@ -97,11 +103,7 @@ public class WelcomeCommand implements Command {
         }
 
         ch.sendMessageEmbeds(eb.build()).queue();
-        ctx.hook().sendMessage(i18n.msg(ctx.locale(), "welcome.test.sent")).queue();
-    }
-
-    private static long parseLongSafe(String s) {
-        try { return Long.parseLong(s); } catch (Exception e) { return -1L; }
+        ctx.replyEphemeral(i18n.msg(ctx.locale(), "welcome.test.sent"));
     }
 
     @Override public String name() { return "welcome"; }
