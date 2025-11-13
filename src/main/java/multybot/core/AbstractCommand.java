@@ -7,33 +7,27 @@ import java.util.Locale;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 
+/**
+ * Implementación base que:
+ *  - Resuelve description(locale) vía ResourceBundle i18n/commands*.properties
+ *  - Construye slashData simple por defecto
+ *  - Solo te obliga a implementar name() y execute(ctx)
+ */
 public abstract class AbstractCommand implements Command {
 
-    /** Carga el bundle i18n (baseName = i18n/commands) */
-    protected ResourceBundle bundle(Locale locale) {
+    @Override
+    public String description(Locale locale) {
+        String key = name() + ".desc";
         try {
-            return ResourceBundle.getBundle("i18n.commands", locale);
+            var bundle = ResourceBundle.getBundle("i18n.commands", locale);
+            return bundle.getString(key);
         } catch (MissingResourceException e) {
-            return ResourceBundle.getBundle("i18n.commands", Locale.ENGLISH);
+            return "No description";
         }
     }
 
-    /** Descripción por defecto: key = "<name>.desc" */
-    @Override
-    public String description(Locale locale) {
-        var b = bundle(locale);
-        var key = name() + ".desc";
-        return b.containsKey(key) ? b.getString(key) : "No description.";
-    }
-
-    /** Slash por defecto (si no necesitas opciones/subcomandos) */
     @Override
     public SlashCommandData slashData(Locale locale) {
         return Commands.slash(name(), description(locale));
     }
-
-    /* ---------- helpers cómodos ---------- */
-    protected void reply(CommandContext ctx, String msg)            { ctx.reply(msg); }
-    protected void replyEphemeral(CommandContext ctx, String msg)   { ctx.replyEphemeral(msg); }
-    protected void ensureAcknowledged(CommandContext ctx)           { ctx.ensureAcknowledged(); }
 }
