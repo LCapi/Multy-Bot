@@ -2,35 +2,40 @@ package multybot.core;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.enterprise.inject.Instance;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import org.jboss.logging.Logger;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class CommandRouter {
+
     private static final Logger LOG = Logger.getLogger(CommandRouter.class);
 
-    /** Quarkus inyecta todos los beans que implementen Command (@ApplicationScoped). */
     @Inject
-    List<Command> commands;
+    Instance<Command> commandInstances;
 
-    public List<Command> commands() { return commands; }
+    /** Devuelve la lista de comandos registrados como beans CDI */
+    public List<Command> commands() {
+        return commandInstances.stream().toList();
+    }
 
     public Optional<Command> find(String name) {
         if (name == null) return Optional.empty();
-        return commands.stream().filter(c -> name.equalsIgnoreCase(c.name())).findFirst();
+        return commands().stream()
+                .filter(c -> name.equalsIgnoreCase(c.name()))
+                .findFirst();
     }
 
     public List<SlashCommandData> slashData(Locale locale) {
-        return commands.stream()
-                .sorted(Comparator.comparing(Command::name))
+        return commands().stream()
                 .map(c -> c.slashData(locale))
-                .toList();
+                .collect(Collectors.toList());
     }
 
     /** Registro en una GUILD concreta (dev) */
@@ -54,7 +59,7 @@ public class CommandRouter {
         );
     }
 
-    /** Ejecuta el comando correspondiente a la interacción (ya deferida si hace falta). */
+    /** Ejecuta el comando correspondiente a la interacción ya deferida en CommandContext */
     public void route(CommandContext ctx) {
         var name = ctx.event().getName();
         find(name).ifPresentOrElse(
