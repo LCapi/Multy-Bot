@@ -14,7 +14,7 @@ public class GreetListener extends ListenerAdapter {
 
     @Override
     public void onGuildMemberJoin(GuildMemberJoinEvent event) {
-        // ¡IMPORTANTE!: usar método tipado 'of(...)' para no perder los campos
+        // ¡IMPORTANTE!: usar mét0do tipado 'of(...)' para no perder los campos
         GreetConfig cfg = GreetConfig.of(event.getGuild().getId());
         if (cfg == null) return;
 

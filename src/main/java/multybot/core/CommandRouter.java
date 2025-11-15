@@ -2,34 +2,38 @@ package multybot.core;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.enterprise.inject.Instance;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import org.jboss.logging.Logger;
 
-import java.util.*;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class CommandRouter {
+
     private static final Logger LOG = Logger.getLogger(CommandRouter.class);
 
     @Inject
-    List<Command> commands = Collections.emptyList();
+    Instance<Command> commandInstances;
 
+    /** Devuelve la lista de comandos registrados como beans CDI */
     public List<Command> commands() {
-        return commands;
+        return commandInstances.stream().toList();
     }
 
     public Optional<Command> find(String name) {
         if (name == null) return Optional.empty();
-        for (var c : commands) {
-            if (name.equalsIgnoreCase(c.name())) return Optional.of(c);
-        }
-        return Optional.empty();
+        return commands().stream()
+                .filter(c -> name.equalsIgnoreCase(c.name()))
+                .findFirst();
     }
 
     public List<SlashCommandData> slashData(Locale locale) {
-        return commands.stream()
+        return commands().stream()
                 .map(c -> c.slashData(locale))
                 .collect(Collectors.toList());
     }

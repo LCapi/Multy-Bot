@@ -39,7 +39,7 @@ public class PollCommand implements Command {
     }
 
     @Override
-    public void execute(CommandContext ctx) throws Exception {
+    public void execute(CommandContext ctx) {
         var ev = ctx.event();
         String sub = ev.getSubcommandName();
         if ("create".equals(sub)) createPoll(ctx);
