@@ -1,29 +1,39 @@
 package multybot.core;
 
-import net.dv8tion.jda.api.interactions.commands.build.Commands;
+import jakarta.inject.Inject;
+import multybot.infra.I18n;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
+import net.dv8tion.jda.api.interactions.commands.build.Commands;
 
 import java.util.Locale;
-import java.util.MissingResourceException;
-import java.util.ResourceBundle;
 
-/**
- * Implementación base que:
- *  - Resuelve description(locale) vía ResourceBundle i18n/commands*.properties
- *  - Construye slashData simple por defecto
- *  - Solo te obliga a implementar name() y execute(ctx)
- */
 public abstract class AbstractCommand implements Command {
+
+    @Inject
+    I18n i18n;
+
+    @Override
+    public String name() {
+        DiscordCommand meta = getClass().getAnnotation(DiscordCommand.class);
+        if (meta != null && !meta.name().isBlank()) {
+            return meta.name();
+        }
+
+        // Fallback: class name without "Command", lowercased
+        String simple = getClass().getSimpleName();
+        if (simple.endsWith("Command")) {
+            simple = simple.substring(0, simple.length() - "Command".length());
+        }
+        return simple.toLowerCase(Locale.ROOT);
+    }
 
     @Override
     public String description(Locale locale) {
-        String key = name() + ".desc";
-        try {
-            var bundle = ResourceBundle.getBundle("i18n.commands", locale);
-            return bundle.getString(key);
-        } catch (MissingResourceException e) {
-            return "No description";
+        DiscordCommand meta = getClass().getAnnotation(DiscordCommand.class);
+        if (meta != null && !meta.descriptionKey().isBlank() && i18n != null) {
+            return i18n.msg(locale, meta.descriptionKey());
         }
+        return "No description available.";
     }
 
     @Override
