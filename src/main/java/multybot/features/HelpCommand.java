@@ -2,13 +2,12 @@ package multybot.features;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import multybot.core.AbstractCommand;
-import multybot.core.Command;
-import multybot.core.CommandContext;
-import multybot.core.CommandRouter;
+import multybot.core.*;
+import multybot.infra.I18n;
+import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
+import net.dv8tion.jda.api.interactions.commands.build.Commands;
 
-import java.util.Comparator;
-import java.util.stream.Collectors;
+import java.util.Locale;
 
 @ApplicationScoped
 public class HelpCommand extends AbstractCommand {
@@ -16,16 +15,34 @@ public class HelpCommand extends AbstractCommand {
     @Inject
     CommandRouter router;
 
-    @Override public String name() { return "help"; }
+    @Inject
+    I18n i18n;
+
+    @Override
+    public String name() {
+        return "help";
+    }
+
+    @Override
+    public SlashCommandData slashData(Locale locale) {
+        return Commands.slash(name(), i18n.msg(locale, "help.description"));
+    }
 
     @Override
     public void execute(CommandContext ctx) {
-        var list = router.commands().stream()
-                .sorted(Comparator.comparing(Command::name))
-                .map(c -> "/" + c.name() + " – " + c.description(ctx.locale()))
-                .collect(Collectors.joining("\n"));
+        var locale = ctx.locale();
 
-        if (list.isEmpty()) list = "No hay comandos registrados.";
-        ctx.hook().editOriginal(list).queue();
+        StringBuilder sb = new StringBuilder();
+        sb.append(i18n.msg(locale, "help.header")).append("\n\n");
+
+        for (Command cmd : router.allCommands()) {
+            sb.append("/")
+                    .append(cmd.name())
+                    .append(" - ")
+                    .append(cmd.description(locale))
+                    .append("\n");
+        }
+
+        ctx.replyEphemeral(sb.toString());
     }
 }
