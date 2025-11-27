@@ -1,77 +1,83 @@
 package multybot.core;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import jakarta.enterprise.inject.Instance;
-import net.dv8tion.jda.api.JDA;
-import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
+import jakarta.inject.Inject;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import org.jboss.logging.Logger;
 
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 @ApplicationScoped
 public class CommandRouter {
 
-    private static final Logger LOG = Logger.getLogger(CommandRouter.class);
+    private final Logger log;
+    private final Map<String, Command> commandsByName = new HashMap<>();
 
     @Inject
-    Instance<Command> commandInstances;
+    public CommandRouter(Instance<Command> commands, Logger log) {
+        this.log = log;
 
-    /** Devuelve la lista de comandos registrados como beans CDI */
-    public List<Command> commands() {
-        return commandInstances.stream().toList();
+        for (Command cmd : commands) {
+            if (cmd == null) {
+                continue;
+            }
+            String name = cmd.name();
+            if (name == null || name.isBlank()) {
+                log.warnf("Skipping Command with blank name: %s", cmd.getClass().getName());
+                continue;
+            }
+
+            Command previous = commandsByName.put(name, cmd);
+            if (previous != null) {
+                log.warnf("Duplicate Command name '%s' between %s and %s",
+                        name,
+                        previous.getClass().getName(),
+                        cmd.getClass().getName());
+            }
+        }
+
+        log.infof("Registered %d commands: %s", commandsByName.size(), commandsByName.keySet());
     }
 
-    public Optional<Command> find(String name) {
-        if (name == null) return Optional.empty();
-        return commands().stream()
-                .filter(c -> name.equalsIgnoreCase(c.name()))
-                .findFirst();
-    }
+    /**
+     * Main entry for slash command execution.
+     */
+    public void dispatch(SlashCommandInteractionEvent event) {
+        String name = event.getName();
+        String guildId = event.getGuild() != null ? event.getGuild().getId() : "DM";
+        String userTag = event.getUser() != null ? event.getUser().getAsTag() : "unknown";
 
-    public List<SlashCommandData> slashData(Locale locale) {
-        return commands().stream()
-                .map(c -> c.slashData(locale))
-                .collect(Collectors.toList());
-    }
+        log.infof("Dispatching slash command '%s' (guild=%s, user=%s)", name, guildId, userTag);
 
-    /** Registro en una GUILD concreta (dev) */
-    public void registerGuild(JDA jda, String guildId, Locale locale) {
-        var guild = jda.getGuildById(guildId);
-        if (guild == null) {
-            LOG.warnf("Guild no encontrada: %s", guildId);
+        Command cmd = commandsByName.get(name);
+        CommandContext ctx = CommandContext.from(event);
+
+        if (cmd == null) {
+            // Unknown command: respond gracefully
+            ctx.replyEphemeral("Unknown command: " + name);
             return;
         }
-        var data = slashData(locale);
-        guild.updateCommands().addCommands(data).queue(v ->
-                LOG.infof("Registrados %d comandos en guild %s (%s).", v.size(), guild.getName(), guild.getId())
-        );
+
+        try {
+            cmd.execute(ctx);
+        } catch (Exception e) {
+            log.errorf(e, "Error executing command '%s' for user %s in guild %s", name, userTag, guildId);
+            try {
+                ctx.replyEphemeral("There was an error while executing this command.");
+            } catch (Exception ignored) {
+                // At least we logged it
+            }
+        }
     }
 
-    /** Registro GLOBAL */
-    public void registerGlobal(JDA jda, Locale locale) {
-        var data = slashData(locale);
-        jda.updateCommands().addCommands(data).queue(v ->
-                LOG.infof("Registrados %d comandos GLOBAL.", v.size())
-        );
-    }
-
-    /** Ejecuta el comando correspondiente a la interacción ya deferida en CommandContext */
-    public void route(CommandContext ctx) {
-        var name = ctx.event().getName();
-        find(name).ifPresentOrElse(
-                c -> {
-                    try {
-                        c.execute(ctx);
-                    } catch (Exception e) {
-                        LOG.errorf(e, "Fallo ejecutando /%s", name);
-                        ctx.hook().editOriginal("Ocurrió un error ejecutando el comando.").queue();
-                    }
-                },
-                () -> ctx.hook().editOriginal("Comando no reconocido.").queue()
-        );
+    /**
+     * Expose all commands for HelpCommand or other features.
+     */
+    public Collection<Command> allCommands() {
+        return Collections.unmodifiableCollection(commandsByName.values());
     }
 }
