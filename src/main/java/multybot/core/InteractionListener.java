@@ -6,42 +6,48 @@ import org.jboss.logging.Logger;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 
-/**
- * Central listener for slash commands.
- * It only logs and delegates to CommandRouter.
- */
 @ApplicationScoped
 public class InteractionListener extends ListenerAdapter {
 
     private static final Logger LOG = Logger.getLogger(InteractionListener.class);
 
     @Inject
-    CommandRouter router;
+    CommandRouter commandRouter;
 
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
         String name = event.getName();
-        LOG.infof("SlashCommand received: /%s in guild %s by %s",
+
+        LOG.infof(
+                "SlashCommand received: /%s in guild %s by %s",
                 name,
                 event.getGuild() != null ? event.getGuild().getId() : "DM",
-                event.getUser().getAsTag());
+                event.getUser().getAsTag()
+        );
 
+        // Optional: for now we only support guild commands
+        if (event.getGuild() == null) {
+            event.reply("This bot only works in servers for now.")
+                    .setEphemeral(true)
+                    .queue();
+            return;
+        }
+
+        // Delegate everything to CommandRouter
         try {
-            // Delegate to the router: it will build CommandContext
-            // and execute the corresponding Command
-            router.dispatch(event);
+            commandRouter.dispatch(event);
         } catch (Exception e) {
-            LOG.error("Failed to dispatch slash command", e);
+            LOG.errorf(e, "Error while dispatching slash command '/%s'", name);
 
-            // Last-resort fallback: only if nothing has acknowledged the event
-            try {
-                if (!event.isAcknowledged()) {
-                    event.reply("There was an internal error while handling this command.")
-                            .setEphemeral(true)
-                            .queue();
-                }
-            } catch (Exception ignored) {
-                // At least we logged the error
+            // Safety net in case router did not manage to reply
+            if (!event.isAcknowledged()) {
+                event.reply("An internal error occurred while processing this command.")
+                        .setEphemeral(true)
+                        .queue();
+            } else {
+                event.getHook().sendMessage("An internal error occurred while processing this command.")
+                        .setEphemeral(true)
+                        .queue();
             }
         }
     }
