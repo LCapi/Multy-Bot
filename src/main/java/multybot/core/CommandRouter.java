@@ -1,83 +1,121 @@
 package multybot.core;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
+import jakarta.enterprise.inject.Instance;
+
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import org.jboss.logging.Logger;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class CommandRouter {
 
-    private final Logger log;
-    private final Map<String, Command> commandsByName = new HashMap<>();
+    private static final Logger LOG = Logger.getLogger(CommandRouter.class);
 
     @Inject
-    public CommandRouter(Instance<Command> commands, Logger log) {
-        this.log = log;
+    Instance<Command> commandInstances;   // instead of List<Command>
 
-        for (Command cmd : commands) {
-            if (cmd == null) {
-                continue;
-            }
-            String name = cmd.name();
-            if (name == null || name.isBlank()) {
-                log.warnf("Skipping Command with blank name: %s", cmd.getClass().getName());
-                continue;
-            }
+    private Map<String, Command> commandsByName = Collections.emptyMap();
 
-            Command previous = commandsByName.put(name, cmd);
-            if (previous != null) {
-                log.warnf("Duplicate Command name '%s' between %s and %s",
-                        name,
-                        previous.getClass().getName(),
-                        cmd.getClass().getName());
-            }
-        }
+    @PostConstruct
+    void init() {
+        // materialize list from Instance<Command>
+        List<Command> commands = commandInstances.stream().toList();
 
-        log.infof("Registered %d commands: %s", commandsByName.size(), commandsByName.keySet());
+        this.commandsByName = commands.stream()
+                .collect(Collectors.toMap(
+                        Command::name,
+                        c -> c,
+                        (a, b) -> a,
+                        LinkedHashMap::new
+                ));
+
+        LOG.infof("Loaded %d commands: %s",
+                commandsByName.size(),
+                String.join(", ", commandsByName.keySet()));
     }
 
     /**
-     * Main entry for slash command execution.
+     * Central dispatch entry point for slash commands.
      */
     public void dispatch(SlashCommandInteractionEvent event) {
         String name = event.getName();
-        String guildId = event.getGuild() != null ? event.getGuild().getId() : "DM";
-        String userTag = event.getUser() != null ? event.getUser().getAsTag() : "unknown";
+        Guild guild = event.getGuild();
+        String guildId = guild != null ? guild.getId() : "DM";
 
-        log.infof("Dispatching slash command '%s' (guild=%s, user=%s)", name, guildId, userTag);
+        LOG.infof("Dispatching slash command '%s' (guild=%s, user=%s)",
+                name,
+                guildId,
+                event.getUser().getAsTag());
 
-        Command cmd = commandsByName.get(name);
         CommandContext ctx = CommandContext.from(event);
 
+        Command cmd = commandsByName.get(name);
         if (cmd == null) {
-            // Unknown command: respond gracefully
-            ctx.replyEphemeral("Unknown command: " + name);
+            // Unknown command: reply ephemeral and exit
+            ctx.replyEphemeral("Unknown command: `" + name + "`");
             return;
         }
 
         try {
             cmd.execute(ctx);
         } catch (Exception e) {
-            log.errorf(e, "Error executing command '%s' for user %s in guild %s", name, userTag, guildId);
-            try {
-                ctx.replyEphemeral("There was an error while executing this command.");
-            } catch (Exception ignored) {
-                // At least we logged it
-            }
+            LOG.errorf(e, "Error executing command '%s'", name);
+            ctx.replyEphemeral("An internal error occurred while executing this command.");
         }
     }
 
     /**
-     * Expose all commands for HelpCommand or other features.
+     * Used by HelpCommand (and others) to see all registered commands.
      */
     public Collection<Command> allCommands() {
-        return Collections.unmodifiableCollection(commandsByName.values());
+        return commandsByName.values();
+    }
+
+    /**
+     * Register commands globally.
+     * (Used by ReadyListener / CommandRegistrar or similar).
+     */
+    public void registerGlobal(JDA jda, Locale locale) {
+        LOG.info("Registering global application commands...");
+        jda.updateCommands()
+                .addCommands(
+                        commandsByName.values().stream()
+                                .map(c -> c.slashData(locale))
+                                .toList()
+                )
+                .queue(
+                        s -> LOG.info("Global commands registered."),
+                        e -> LOG.error("Failed to register global commands", e)
+                );
+    }
+
+    /**
+     * Register commands for a specific guild (dev / staging).
+     */
+    public void registerGuild(JDA jda, String guildId, Locale locale) {
+        Guild guild = jda.getGuildById(guildId);
+        if (guild == null) {
+            LOG.warnf("Could not find dev guild id=%s to register commands", guildId);
+            return;
+        }
+
+        LOG.infof("Registering guild commands for guild=%s", guildId);
+        guild.updateCommands()
+                .addCommands(
+                        commandsByName.values().stream()
+                                .map(c -> c.slashData(locale))
+                                .toList()
+                )
+                .queue(
+                        s -> LOG.infof("Commands registered in guild %s", guildId),
+                        e -> LOG.errorf(e, "Failed to register commands in guild %s", guildId)
+                );
     }
 }
