@@ -3,7 +3,6 @@ package multybot.core;
 import jakarta.inject.Inject;
 import multybot.infra.I18n;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
-import net.dv8tion.jda.api.interactions.commands.build.Commands;
 
 import java.util.Locale;
 
@@ -38,6 +37,8 @@ public abstract class AbstractCommand implements Command {
 
     @Override
     public SlashCommandData slashData(Locale locale) {
-        return Commands.slash(name(), description(locale));
+        throw new UnsupportedOperationException(
+                "slashData(Locale) must be implemented by " + getClass().getName()
+        );
     }
 }
