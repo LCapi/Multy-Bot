@@ -11,7 +11,7 @@ import java.util.ResourceBundle;
 public class MessageBundle {
 
     // Base name for ResourceBundle: maps to src/main/resources/messages/messages_*.properties
-    private static final String BASENAME = "messages.messages";
+    private static final String BASENAME = "messages";
 
     public String get(Locale locale, String key, Object... args) {
         Locale effective = (locale != null ? locale : Locale.ENGLISH);
