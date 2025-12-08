@@ -2,9 +2,9 @@ package multybot.core;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.jboss.logging.Logger;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import org.jboss.logging.Logger;
 
 @ApplicationScoped
 public class InteractionListener extends ListenerAdapter {
@@ -16,39 +16,18 @@ public class InteractionListener extends ListenerAdapter {
 
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
-        String name = event.getName();
-
-        LOG.infof(
-                "SlashCommand received: /%s in guild %s by %s",
-                name,
+        LOG.infof("SlashCommand received: /%s in guild %s by %s",
+                event.getName(),
                 event.getGuild() != null ? event.getGuild().getId() : "DM",
-                event.getUser().getAsTag()
+                event.getUser().getAsTag());
+
+        // 1) ACK inmediato (siempre dentro de los 3s)
+        event.deferReply().queue(
+                success -> {
+                    // 2) Ahora ya podemos hacer trabajo “lento” sin miedo
+                    commandRouter.dispatch(event);
+                },
+                error -> LOG.error("Failed to defer reply for interaction " + event.getId(), error)
         );
-
-        // Optional: for now we only support guild commands
-        if (event.getGuild() == null) {
-            event.reply("This bot only works in servers for now.")
-                    .setEphemeral(true)
-                    .queue();
-            return;
-        }
-
-        // Delegate everything to CommandRouter
-        try {
-            commandRouter.dispatch(event);
-        } catch (Exception e) {
-            LOG.errorf(e, "Error while dispatching slash command '/%s'", name);
-
-            // Safety net in case router did not manage to reply
-            if (!event.isAcknowledged()) {
-                event.reply("An internal error occurred while processing this command.")
-                        .setEphemeral(true)
-                        .queue();
-            } else {
-                event.getHook().sendMessage("An internal error occurred while processing this command.")
-                        .setEphemeral(true)
-                        .queue();
-            }
-        }
     }
 }
