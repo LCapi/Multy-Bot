@@ -10,8 +10,8 @@ import net.dv8tion.jda.api.interactions.InteractionHook;
 import java.util.Locale;
 
 /**
- * Per-interaction context for slash commands.
- * Provides safe access to JDA, guild, member, locale and reply helpers.
+ * Contexto por interacción para slash commands.
+ * Proporciona acceso cómodo a JDA, guild, miembro, locale y helpers de respuesta.
  */
 public class CommandContext {
 
@@ -23,29 +23,42 @@ public class CommandContext {
         this.locale = locale;
     }
 
-    /** Main factory */
+    /** Fábrica principal */
     public static CommandContext from(SlashCommandInteractionEvent event) {
         return new CommandContext(event, resolveLocale(event));
     }
 
-    /** Alias for compatibility / readability */
+    /** Alias por legibilidad / compatibilidad */
     public static CommandContext fromEvent(SlashCommandInteractionEvent event) {
         return from(event);
     }
 
     /**
-     * Resolve locale with the following precedence:
-     * 1) User locale
-     * 2) Guild locale
-     * 3) JVM default locale
+     * Resolución de locale con esta prioridad:
+     * 1) Locale del usuario (event.getUserLocale())
+     * 2) Locale de la guild (event.getGuild().getLocale())
+     * 3) Fallback: Locale.ENGLISH
      */
     private static Locale resolveLocale(SlashCommandInteractionEvent e) {
+        // 1) Locale del usuario
         DiscordLocale user = e.getUserLocale();
-        return Locale.forLanguageTag(user.getLocale());
+        if (user != null && user != DiscordLocale.UNKNOWN) {
+            return Locale.forLanguageTag(user.getLocale());
+        }
 
+        // 2) Locale de la guild
+        if (e.getGuild() != null) {
+            DiscordLocale guildLocale = e.getGuild().getLocale();
+            if (guildLocale != null && guildLocale != DiscordLocale.UNKNOWN) {
+                return Locale.forLanguageTag(guildLocale.getLocale());
+            }
+        }
+
+        // 3) Fallback
+        return Locale.ENGLISH; // o Locale.getDefault() si prefieres
     }
 
-    // ------------- Context getters -------------
+    // ------------- Getters de contexto -------------
 
     public SlashCommandInteractionEvent event() {
         return event;
@@ -67,12 +80,12 @@ public class CommandContext {
         return event.getMember();
     }
 
-    // ------------- Reply helpers -------------
+    // ------------- Helpers de respuesta -------------
 
     /**
-     * Safe reply helper.
-     * If the interaction is not yet acknowledged, uses event.reply().
-     * Otherwise, uses the interaction hook to send a follow-up message.
+     * Reply “normal”.
+     * - Si la interacción no está reconocida: event.reply(...)
+     * - Si ya está reconocida (defer/reply previo): hook().sendMessage(...)
      */
     public void reply(String content) {
         if (event.isAcknowledged()) {
@@ -83,9 +96,9 @@ public class CommandContext {
     }
 
     /**
-     * Ephemeral reply helper.
-     * If the interaction is not yet acknowledged, uses event.reply().setEphemeral(true).
-     * Otherwise, uses the hook with an ephemeral follow-up.
+     * Reply efímero.
+     * - Si la interacción no está reconocida: event.reply(...).setEphemeral(true)
+     * - Si ya está reconocida: hook().sendMessage(...).setEphemeral(true)
      */
     public void replyEphemeral(String content) {
         if (event.isAcknowledged()) {
@@ -100,22 +113,28 @@ public class CommandContext {
     }
 
     /**
-     * Ensures the interaction is acknowledged (deferReply() if needed)
-     * and returns the interaction hook.
+     * Asegura que la interacción está reconocida (deferReply si hace falta)
+     * y devuelve el InteractionHook.
+     *
+     * IMPORTANTE:
+     * - Si tu InteractionListener ya hace event.deferReply() siempre,
+     *   esto simplemente devuelve el hook.
      */
     public InteractionHook hook() {
         ensureAcknowledged();
         return event.getHook();
     }
 
-    /** Convenience method to send an additional message after the first reply. */
+    /** Enviar un mensaje adicional después del primero (follow-up). */
     public void followup(String content) {
         hook().sendMessage(content).queue();
     }
 
     /**
-     * If the interaction has not been acknowledged yet (no reply or defer),
-     * it calls deferReply() to avoid the 3-second timeout.
+     * Si la interacción aún no está reconocida (sin reply ni defer),
+     * llama a deferReply() para evitar el timeout de 3s.
+     *
+     * Si ya está reconocida, no hace nada (no-op).
      */
     public void ensureAcknowledged() {
         if (!event.isAcknowledged()) {
