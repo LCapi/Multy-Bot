@@ -1,12 +1,12 @@
+// src/main/java/multybot/features/greet/GreetConfig.java
 package multybot.features.greet;
 
-import io.quarkus.mongodb.panache.PanacheMongoEntityBase;
-import io.quarkus.mongodb.panache.common.MongoEntity;
-import org.bson.codecs.pojo.annotations.BsonId;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
-@MongoEntity(collection = "greet_config")
-public class GreetConfig extends PanacheMongoEntityBase {
-    @BsonId public String guildId;
+public class GreetConfig {
+
+    public String guildId;
 
     // Welcome
     public String welcomeChannelId;
@@ -17,10 +17,18 @@ public class GreetConfig extends PanacheMongoEntityBase {
     public String goodbyeChannelId;
     public String goodbyeMessage;   // usa {user} y {guild}
 
+    private static final Map<String, GreetConfig> STORE = new ConcurrentHashMap<>();
+
     public static GreetConfig of(String guildId) {
-        GreetConfig c = findById(guildId);
-        if (c == null) { c = new GreetConfig(); c.guildId = guildId; }
-        return c;
+        return STORE.computeIfAbsent(guildId, id -> {
+            GreetConfig c = new GreetConfig();
+            c.guildId = id;
+            return c;
+        });
     }
 
+    public static void save(GreetConfig cfg) {
+        if (cfg == null || cfg.guildId == null) return;
+        STORE.put(cfg.guildId, cfg);
+    }
 }

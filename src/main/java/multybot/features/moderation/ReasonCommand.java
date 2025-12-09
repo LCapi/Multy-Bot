@@ -1,15 +1,18 @@
 package multybot.features.moderation;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import multybot.core.*;
+import jakarta.inject.Inject;
+import multybot.core.Command;
+import multybot.core.CommandContext;
+import multybot.core.Cooldown;
+import multybot.core.DiscordCommand;
+import multybot.core.RequirePermissions;
 import multybot.infra.I18n;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
-import jakarta.inject.Inject;
-import org.bson.types.ObjectId;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -21,13 +24,14 @@ import java.util.Objects;
 public class ReasonCommand implements Command {
 
     @Inject I18n i18n;
+    @Inject ModerationCaseRegistry cases;
 
     @Override
     public SlashCommandData slashData(Locale locale) {
         return Commands.slash("reason", i18n.msg(locale, "reason.set.description"))
                 .addSubcommands(
                         new SubcommandData("set", i18n.msg(locale, "reason.set.description"))
-                                .addOption(OptionType.STRING, "id", "ID del caso (ObjectId)", true)
+                                .addOption(OptionType.STRING, "id", "ID del caso", true)
                                 .addOption(OptionType.STRING, "reason", "Nueva razón", true)
                 );
     }
@@ -40,24 +44,25 @@ public class ReasonCommand implements Command {
             ctx.hook().sendMessage("Unknown subcommand").queue();
             return;
         }
-        String id = ev.getOption("id").getAsString();
+
+        String id = ev.getOption("id").getAsString().trim();
         String reason = ev.getOption("reason").getAsString();
 
-        if (!ObjectId.isValid(id)) {
-            ctx.hook().sendMessage(i18n.msg(ctx.locale(), "case.error.id")).queue();
-            return;
-        }
-        ModerationCase mc = ModerationCase.findById(new ObjectId(id));
+        // Buscar el caso en la store en memoria
+        ModerationCase mc = cases.findById(id).orElse(null);
         if (mc == null || !Objects.equals(mc.guildId, ctx.guild().getId())) {
             ctx.hook().sendMessage(i18n.msg(ctx.locale(), "reason.set.notfound")).queue();
             return;
         }
 
         mc.reason = reason;
-        mc.update();
+        cases.save(mc);
 
         ctx.hook().sendMessage(i18n.msg(ctx.locale(), "reason.set.ok")).queue();
     }
 
-    @Override public String name() { return "reason"; }
+    @Override
+    public String name() {
+        return "reason";
+    }
 }
