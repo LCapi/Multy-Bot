@@ -6,7 +6,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import multybot.core.*;
-import multybot.infra.persistence.CooldownDoc;
 import net.dv8tion.jda.api.Permission;
 
 @ApplicationScoped
