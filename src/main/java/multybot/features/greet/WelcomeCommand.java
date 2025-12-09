@@ -58,7 +58,7 @@ public class WelcomeCommand extends AbstractCommand {
         String channelId = Objects.requireNonNull(ctx.event().getOption("channel")).getAsChannel().getId(); // JDA 5: usamos id String
         GreetConfig cfg = GreetConfig.of(ctx.guild().getId());
         cfg.welcomeChannelId = channelId;
-        cfg.persistOrUpdate();
+        GreetConfig.save(cfg);
         ctx.hook().sendMessage(i18n.msg(ctx.locale(), "welcome.set.channel.ok")).queue();
     }
 
@@ -66,7 +66,7 @@ public class WelcomeCommand extends AbstractCommand {
         String msg = Objects.requireNonNull(ctx.event().getOption("message")).getAsString();
         GreetConfig cfg = GreetConfig.of(ctx.guild().getId());
         cfg.welcomeMessage = msg;
-        cfg.persistOrUpdate();
+        GreetConfig.save(cfg);
         ctx.hook().sendMessage(i18n.msg(ctx.locale(), "welcome.set.message.ok")).queue();
     }
 
@@ -74,7 +74,7 @@ public class WelcomeCommand extends AbstractCommand {
         String url = Objects.requireNonNull(ctx.event().getOption("url")).getAsString();
         GreetConfig cfg = GreetConfig.of(ctx.guild().getId());
         cfg.welcomeImageUrl = url;
-        cfg.persistOrUpdate();
+        GreetConfig.save(cfg);
         ctx.hook().sendMessage(i18n.msg(ctx.locale(), "welcome.set.image.ok")).queue();
     }
 

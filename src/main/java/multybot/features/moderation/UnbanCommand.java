@@ -25,6 +25,7 @@ public class UnbanCommand implements Command {
 
     @Inject I18n i18n;
     @Inject LogService logs;
+    @Inject ModerationCaseRegistry cases;
 
     private static final Pattern MENTION = Pattern.compile("<@!?(\\d+)>");
 
@@ -65,7 +66,7 @@ public class UnbanCommand implements Command {
                     mc.targetId = userId;
                     mc.type = ModerationType.UNBAN;
                     mc.reason = reason;
-                    mc.persist();
+                    cases.save(mc);
 
                     logs.log(ctx.guild(), "**[UNBAN]** <@" + userId + "> (by <@" + ctx.member().getId() + ">) — " + reason);
                     ctx.hook().sendMessage(i18n.msg(ctx.locale(), "mod.done")).queue();

@@ -1,23 +1,29 @@
 package multybot.features.automod;
 
-import io.quarkus.mongodb.panache.PanacheMongoEntityBase;
-import io.quarkus.mongodb.panache.common.MongoEntity;
-import org.bson.codecs.pojo.annotations.BsonId;
+import net.dv8tion.jda.api.entities.Role;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
-@MongoEntity(collection = "automod_config")
-public class AutomodConfig extends PanacheMongoEntityBase {
-    @BsonId public String guildId;
+/**
+ * Temporary Automod configuration without Mongo/Panache.
+ * Uses an in-memory store keyed by guildId.
+ */
+public class AutomodConfig {
+
+    // --- In-memory "persistence" ---
+
+    private static final Map<String, AutomodConfig> STORE = new ConcurrentHashMap<>();
+
+    // --- Fields ---
+
+    public String guildId;
 
     public boolean enabled = false;
 
-    // Reglas básicas
+    // Basic rules
     public boolean badwordsEnabled = true;
-    public List<String> badwords = new ArrayList<>(List.of("idiota","imbécil","estúpido"));
+    public List<String> badwords = new ArrayList<>(List.of("idiota", "imbécil", "estúpido"));
     public String badwordsAction = "DELETE";
     public int badwordsTimeoutMinutes = 0;
 
@@ -38,23 +44,59 @@ public class AutomodConfig extends PanacheMongoEntityBase {
     public String mentionsAction = "TIMEOUT";
     public int mentionsTimeoutMinutes = 10;
 
-    // Exenciones
+    // Exemptions
     public Set<String> exemptRoleIds = new HashSet<>();
     public Set<String> exemptChannelIds = new HashSet<>();
     public Set<String> exemptUserIds = new HashSet<>();
 
-    public static AutomodConfig loadOrDefault(String guildId) {
-        AutomodConfig c = findById(guildId);
-        if (c == null) { c = new AutomodConfig(); c.guildId = guildId; }
-        return c;
+    // --- "Persistence" API (replacing Panache) ---
+
+    /** Returns the config for this guild or null if not present. */
+    public static AutomodConfig findById(String guildId) {
+        if (guildId == null) return null;
+        return STORE.get(guildId);
     }
 
-    public boolean isEnabled() { return enabled; }
+    /**
+     * Loads existing config for the guild or creates a new one with defaults.
+     */
+    public static AutomodConfig loadOrDefault(String guildId) {
+        if (guildId == null) {
+            return null;
+        }
+        return STORE.computeIfAbsent(guildId, gid -> {
+            AutomodConfig c = new AutomodConfig();
+            c.guildId = gid;
+            return c;
+        });
+    }
 
-    public boolean isExempt(String channelId, String userId, List<net.dv8tion.jda.api.entities.Role> roles) {
+    /**
+     * Saves or updates this config in the in-memory store.
+     */
+    public void persistOrUpdate() {
+        if (guildId == null || guildId.isBlank()) {
+            return;
+        }
+        STORE.put(guildId, this);
+    }
+
+    // --- Logic helpers ---
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public boolean isExempt(String channelId, String userId, List<Role> roles) {
         if (channelId != null && exemptChannelIds.contains(channelId)) return true;
         if (userId != null && exemptUserIds.contains(userId)) return true;
-        if (roles != null) for (var r : roles) if (exemptRoleIds.contains(r.getId())) return true;
+        if (roles != null) {
+            for (Role r : roles) {
+                if (exemptRoleIds.contains(r.getId())) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 }

@@ -2,16 +2,17 @@ package multybot.features.poll;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import multybot.core.*;
+import multybot.core.Command;
+import multybot.core.CommandContext;
+import multybot.core.Cooldown;
+import multybot.core.DiscordCommand;
 import multybot.infra.I18n;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.*;
-
-import org.bson.types.ObjectId;
+import net.dv8tion.jda.api.interactions.components.ActionRow;
+import net.dv8tion.jda.api.interactions.components.buttons.Button;
 
 import java.awt.*;
 import java.text.MessageFormat;
@@ -20,11 +21,12 @@ import java.util.List;
 import java.util.Locale;
 
 @ApplicationScoped
-@DiscordCommand(name="poll", descriptionKey="poll.create.description")
+@DiscordCommand(name = "poll", descriptionKey = "poll.create.description")
 @Cooldown(seconds = 5)
 public class PollCommand implements Command {
 
     @Inject I18n i18n;
+    @Inject PollRegistry pollRegistry; // <-- nuevo
 
     @Override
     public SlashCommandData slashData(Locale locale) {
@@ -34,7 +36,7 @@ public class PollCommand implements Command {
                                 .addOption(OptionType.STRING, "question", "Pregunta", true)
                                 .addOption(OptionType.STRING, "options", "Opciones separadas por ';' (2-10)", true),
                         new SubcommandData("close", i18n.msg(locale, "poll.close.description"))
-                                .addOption(OptionType.STRING, "id", "ID de la encuesta (ObjectId)", true)
+                                .addOption(OptionType.STRING, "id", "ID de la encuesta", true)
                 );
     }
 
@@ -42,9 +44,13 @@ public class PollCommand implements Command {
     public void execute(CommandContext ctx) {
         var ev = ctx.event();
         String sub = ev.getSubcommandName();
-        if ("create".equals(sub)) createPoll(ctx);
-        else if ("close".equals(sub)) closePoll(ctx);
-        else ctx.hook().sendMessage("Unknown subcommand").queue();
+        if ("create".equals(sub)) {
+            createPoll(ctx);
+        } else if ("close".equals(sub)) {
+            closePoll(ctx);
+        } else {
+            ctx.hook().sendMessage("Unknown subcommand").queue();
+        }
     }
 
     private void createPoll(CommandContext ctx) {
@@ -55,55 +61,61 @@ public class PollCommand implements Command {
         List<String> opts = new ArrayList<>();
         for (String p : parts) {
             String s = p.trim();
-            if (!s.isEmpty()) opts.add(s);
+            if (!s.isEmpty()) {
+                opts.add(s);
+            }
         }
         if (opts.size() < 2 || opts.size() > 10) {
             ctx.hook().sendMessage(i18n.msg(ctx.locale(), "poll.invalid.options")).queue();
             return;
         }
 
-        // persistimos antes para conocer el id y usarlo en customId de botones
+        // Creamos el PollDoc y lo registramos (sin Mongo)
         PollDoc poll = new PollDoc();
+        poll.id = pollRegistry.nextId(); // <-- mét0do del registry que genera un id String
         poll.guildId = ctx.guild().getId();
-        poll.channelId = ctx.event().getChannel().getId();
+        poll.channelId = ev.getChannel().getId();
         poll.question = q;
         poll.options = opts;
-        poll.persist();
+        pollRegistry.save(poll);
 
-        // build embed + buttons
+        // Embed + botones
         var eb = new EmbedBuilder()
                 .setTitle("🗳️ " + q)
                 .setColor(new Color(0x5865F2));
         for (int i = 0; i < opts.size(); i++) {
-            eb.addField((i+1)+".", opts.get(i), true);
+            eb.addField((i + 1) + ".", opts.get(i), true);
         }
 
         List<Button> buttons = new ArrayList<>();
         for (int i = 0; i < opts.size(); i++) {
-            String cid = "poll:vote:" + poll.id.toHexString() + ":" + i;
-            buttons.add(Button.primary(cid, Integer.toString(i+1)));
+            String cid = "poll:vote:" + poll.id + ":" + i; // usamos id String plano
+            buttons.add(Button.primary(cid, Integer.toString(i + 1)));
         }
         List<ActionRow> rows = new ArrayList<>();
         for (int i = 0; i < buttons.size(); i += 5) {
-            rows.add(ActionRow.of(buttons.subList(i, Math.min(i+5, buttons.size()))));
+            rows.add(ActionRow.of(buttons.subList(i, Math.min(i + 5, buttons.size()))));
         }
 
         var hook = ctx.hook();
-        hook.sendMessageEmbeds(eb.build()).setComponents(rows).queue(msg -> {
-            poll.messageId = msg.getId();
-            poll.update();
-            hook.sendMessage(MessageFormat.format(i18n.msg(ctx.locale(),"poll.created"), poll.id.toHexString()))
-                    .setEphemeral(true).queue();
-        });
+        hook.sendMessageEmbeds(eb.build())
+                .setComponents(rows)
+                .queue(msg -> {
+                    poll.messageId = msg.getId();
+                    pollRegistry.save(poll); // re-guardar con messageId
+                    hook.sendMessage(MessageFormat.format(
+                                    i18n.msg(ctx.locale(), "poll.created"),
+                                    poll.id
+                            ))
+                            .setEphemeral(true)
+                            .queue();
+                });
     }
 
     private void closePoll(CommandContext ctx) {
-        String id = ctx.event().getOption("id").getAsString();
-        if (!ObjectId.isValid(id)) {
-            ctx.hook().sendMessage(i18n.msg(ctx.locale(), "poll.notfound")).queue();
-            return;
-        }
-        PollDoc poll = PollDoc.findById(new ObjectId(id));
+        String id = ctx.event().getOption("id").getAsString().trim();
+
+        PollDoc poll = pollRegistry.findById(id).orElse(null);
         if (poll == null || !poll.guildId.equals(ctx.guild().getId())) {
             ctx.hook().sendMessage(i18n.msg(ctx.locale(), "poll.notfound")).queue();
             return;
@@ -115,33 +127,37 @@ public class PollCommand implements Command {
 
         poll.closed = true;
         poll.closedAt = new java.util.Date();
-        poll.update();
+        pollRegistry.save(poll);
 
-        // deshabilitar botones en el mensaje original
-        var ch = ctx.jda().getTextChannelById(poll.channelId);
-        if (ch != null) {
+        // Deshabilitar botones en el mensaje original
+        TextChannel ch = ctx.jda().getTextChannelById(poll.channelId);
+        if (ch != null && poll.messageId != null) {
             var msg = ch.retrieveMessageById(poll.messageId).complete();
             if (msg != null) {
-                // reconstruimos los mismos botones pero disabled
                 List<Button> buttons = new ArrayList<>();
                 for (int i = 0; i < poll.options.size(); i++) {
-                    String cid = "poll:vote:" + poll.id.toHexString() + ":" + i;
-                    buttons.add(Button.secondary(cid, Integer.toString(i+1)).asDisabled());
+                    String cid = "poll:vote:" + poll.id + ":" + i;
+                    buttons.add(Button.secondary(cid, Integer.toString(i + 1)).asDisabled());
                 }
                 List<ActionRow> rows = new ArrayList<>();
                 for (int i = 0; i < buttons.size(); i += 5) {
-                    rows.add(ActionRow.of(buttons.subList(i, Math.min(i+5, buttons.size()))));
+                    rows.add(ActionRow.of(buttons.subList(i, Math.min(i + 5, buttons.size()))));
                 }
                 msg.editMessageComponents(rows).queue();
             }
         }
 
-        // publicar resultados en el canal
-        var res = PollUtil.resultsEmbed(ctx, poll);
-        if (ch != null) ch.sendMessageEmbeds(res.build()).queue();
+        // Publicar resultados
+        if (ch != null) {
+            var res = PollUtil.resultsEmbed(ctx, poll);
+            ch.sendMessageEmbeds(res.build()).queue();
+        }
 
         ctx.hook().sendMessage(i18n.msg(ctx.locale(), "poll.closed")).queue();
     }
 
-    @Override public String name() { return "poll"; }
+    @Override
+    public String name() {
+        return "poll";
+    }
 }

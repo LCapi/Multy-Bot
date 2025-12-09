@@ -23,6 +23,7 @@ public class BanCommand implements Command {
 
     @Inject I18n i18n;
     @Inject LogService logs;
+    @Inject ModerationCaseRegistry cases;
 
     @Override
     public SlashCommandData slashData(Locale locale) {
@@ -69,7 +70,7 @@ public class BanCommand implements Command {
                             mc.targetId = user.getId();
                             mc.type = ModerationType.BAN;
                             mc.reason = reason;
-                            mc.persist();
+                            cases.save(mc);
 
                             logs.log(ctx.guild(), "**[BAN]** <@%s> (by <@%s>) — %s".formatted(
                                     user.getId(), ctx.member().getId(), reason));

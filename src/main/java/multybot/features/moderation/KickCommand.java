@@ -21,6 +21,7 @@ public class KickCommand implements Command {
 
     @Inject I18n i18n;
     @Inject LogService logs;
+    @Inject ModerationCaseRegistry cases;
 
     @Override
     public SlashCommandData slashData(Locale locale) {
@@ -53,7 +54,7 @@ public class KickCommand implements Command {
         mc.targetId = target.getId();
         mc.type = ModerationType.KICK;
         mc.reason = reason;
-        mc.persist();
+        cases.save(mc);
 
         logs.log(ctx.guild(), "**[KICK]** <@%s> (by <@%s>) — %s".formatted(
                 target.getId(), ctx.member().getId(), reason));

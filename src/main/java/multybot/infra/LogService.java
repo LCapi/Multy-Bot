@@ -1,33 +1,43 @@
 package multybot.infra;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import multybot.infra.persistence.GuildConfig;
 import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import org.jboss.logging.Logger;
 
 @ApplicationScoped
 public class LogService {
 
-    /** Método que llaman tus comandos */
+    private static final Logger LOG = Logger.getLogger(LogService.class);
+
+    /**
+     * Legacy API used by commands.
+     * For now it just logs to application logs, without any persistence or Discord channel.
+     */
     public void log(Guild guild, String text) {
-        if (guild == null || text == null || text.isBlank()) return;
-        // Lee el canal desde la configuración del guild
-        var cfg = GuildConfig.of(guild.getId());
-        String chId = (cfg != null) ? cfg.logChannelId : null;
-        if (chId == null || chId.isBlank()) return;
+        if (text == null || text.isBlank()) {
+            return;
+        }
 
-        TextChannel ch = guild.getTextChannelById(parseLongSafe(chId));
-        if (ch != null) ch.sendMessage(text).queue();
+        String guildId = (guild != null) ? guild.getId() : "null";
+        String guildName = (guild != null) ? guild.getName() : "unknown";
+
+        LOG.infof("[GuildLog] guildId=%s name='%s' :: %s", guildId, guildName, text);
     }
 
-    /** Helper estático por si lo usas en otros sitios */
+    /**
+     * Static helper kept for backward-compatibility.
+     * Delegates to the instance-style logging when possible.
+     */
     public static void sendToLog(Guild guild, String channelId, String text) {
-        if (guild == null || channelId == null || text == null || text.isBlank()) return;
-        TextChannel ch = guild.getTextChannelById(parseLongSafe(channelId));
-        if (ch != null) ch.sendMessage(text).queue();
-    }
+        // For now we ignore channelId and just log.
+        if (text == null || text.isBlank()) {
+            return;
+        }
 
-    private static long parseLongSafe(String s) {
-        try { return Long.parseLong(s); } catch (Exception e) { return -1L; }
+        String guildId = (guild != null) ? guild.getId() : "null";
+        String guildName = (guild != null) ? guild.getName() : "unknown";
+
+        Logger.getLogger(LogService.class)
+                .infof("[GuildLog-static] guildId=%s name='%s' :: %s", guildId, guildName, text);
     }
 }

@@ -44,7 +44,7 @@ public class GoodbyeCommand implements Command {
         var ch = ctx.event().getOption("channel").getAsChannel().asGuildMessageChannel();
         GreetConfig cfg = GreetConfig.of(ctx.guild().getId());
         cfg.goodbyeChannelId = ch.getId();
-        cfg.persistOrUpdate();
+        GreetConfig.save(cfg);
         ctx.hook().sendMessage(i18n.msg(ctx.locale(), "goodbye.set.channel.ok")).queue();
     }
 
@@ -52,7 +52,7 @@ public class GoodbyeCommand implements Command {
         String msg = ctx.event().getOption("message").getAsString();
         GreetConfig cfg = GreetConfig.of(ctx.guild().getId());
         cfg.goodbyeMessage = msg;
-        cfg.persistOrUpdate();
+        GreetConfig.save(cfg);
         ctx.hook().sendMessage(i18n.msg(ctx.locale(), "goodbye.set.message.ok")).queue();
     }
 

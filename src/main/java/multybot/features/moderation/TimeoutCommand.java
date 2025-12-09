@@ -23,6 +23,7 @@ public class TimeoutCommand implements Command {
 
     @Inject I18n i18n;
     @Inject LogService logs;
+    @Inject ModerationCaseRegistry cases;
 
     @Override
     public SlashCommandData slashData(Locale locale) {
@@ -63,7 +64,7 @@ public class TimeoutCommand implements Command {
         mc.type = ModerationType.TIMEOUT;
         mc.reason = reason;
         mc.expiresAt = new Date(System.currentTimeMillis() + d.toMillis());
-        mc.persist();
+        cases.save(mc);
 
         logs.log(ctx.guild(), "**[TIMEOUT]** <@%s> %d min (by <@%s>) — %s".formatted(
                 target.getId(), minutes, ctx.member().getId(), reason));

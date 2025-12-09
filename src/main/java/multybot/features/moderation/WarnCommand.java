@@ -21,6 +21,7 @@ public class WarnCommand implements Command {
 
     @Inject I18n i18n;
     @Inject LogService logs;
+    @Inject ModerationCaseRegistry cases;
 
     @Override
     public SlashCommandData slashData(Locale locale) {
@@ -49,7 +50,7 @@ public class WarnCommand implements Command {
         mc.targetId = target.getId();
         mc.type = ModerationType.WARN;
         mc.reason = reason;
-        mc.persist();
+        cases.save(mc);
 
         // DM opcional
         target.getUser().openPrivateChannel().queue(pc -> {

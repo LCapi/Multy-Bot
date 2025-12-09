@@ -10,12 +10,12 @@ import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
-import org.bson.types.ObjectId;
 
 import java.awt.Color;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 public class CaseCommand implements Command {
 
     @Inject I18n i18n;
+    @Inject ModerationCaseRegistry cases;
 
     private static final int PAGE_SIZE = 10;
 
@@ -37,12 +38,12 @@ public class CaseCommand implements Command {
                                 .addOption(OptionType.USER,    "user", i18n.msg(locale, "case.list.user"), false)
                                 .addOption(OptionType.STRING,  "type", i18n.msg(locale, "case.list.type"), false),
                         new SubcommandData("show", i18n.msg(locale, "case.show.description"))
-                                .addOption(OptionType.STRING, "id", "Mongo ObjectId (hex)", true),
+                                .addOption(OptionType.STRING, "id", "Case ID", true),
                         new SubcommandData("delete", i18n.msg(locale, "case.delete.description"))
-                                .addOption(OptionType.STRING, "id", "Mongo ObjectId (hex)", true),
+                                .addOption(OptionType.STRING, "id", "Case ID", true),
                         new SubcommandData("reason", i18n.msg(locale, "case.reason.description"))
-                                .addOption(OptionType.STRING, "id",     "Mongo ObjectId (hex)", true)
-                                .addOption(OptionType.STRING, "reason", "Nueva razón", true)
+                                .addOption(OptionType.STRING, "id",     "Case ID", true)
+                                .addOption(OptionType.STRING, "reason", "New reason", true)
                 );
     }
 
@@ -58,35 +59,48 @@ public class CaseCommand implements Command {
                 default -> ctx.hook().sendMessage("Unknown subcommand").queue();
             }
         } catch (Exception e) {
-            ctx.hook().sendMessage("❌ " + e.getMessage()).queue();
+            ctx.hook().sendMessage("X " + e.getMessage()).queue();
         }
     }
 
     private void handleList(CommandContext ctx) {
         String gid = ctx.guild().getId();
-        Integer pageOpt = ctx.event().getOption("page") != null ? ctx.event().getOption("page").getAsInt() : 1;
-        int page = pageOpt == null || pageOpt < 1 ? 1 : pageOpt;
+        Integer pageOpt = ctx.event().getOption("page") != null
+                ? ctx.event().getOption("page").getAsInt()
+                : 1;
+        int page = (pageOpt == null || pageOpt < 1) ? 1 : pageOpt;
 
-        String userId = ctx.event().getOption("user") != null ? ctx.event().getOption("user").getAsUser().getId() : null;
-        String typeStr = ctx.event().getOption("type") != null ? ctx.event().getOption("type").getAsString() : null;
+        String userId = ctx.event().getOption("user") != null
+                ? ctx.event().getOption("user").getAsUser().getId()
+                : null;
+        String typeStr = ctx.event().getOption("type") != null
+                ? ctx.event().getOption("type").getAsString()
+                : null;
 
         ModerationType typeFilter = null;
         if (typeStr != null) {
-            try { typeFilter = ModerationType.valueOf(typeStr.toUpperCase()); } catch (Exception ignored) {}
+            try {
+                typeFilter = ModerationType.valueOf(typeStr.toUpperCase(Locale.ROOT));
+            } catch (Exception ignored) {}
         }
 
-        List<ModerationCase> all = ModerationCase.<ModerationCase>find("guildId", gid).list();
+        // Obtener todos los casos del guild desde la registry
+        List<ModerationCase> all = cases.findByGuild(gid);
 
-        // filtros en memoria (simple y suficiente aquí)
+        // Filtros en memoria
         if (userId != null) {
-            all = all.stream().filter(mc -> userId.equals(mc.targetId)).collect(Collectors.toList());
+            all = all.stream()
+                    .filter(mc -> userId.equals(mc.targetId))
+                    .collect(Collectors.toList());
         }
         if (typeFilter != null) {
             ModerationType tf = typeFilter;
-            all = all.stream().filter(mc -> mc.type == tf).collect(Collectors.toList());
+            all = all.stream()
+                    .filter(mc -> mc.type == tf)
+                    .collect(Collectors.toList());
         }
 
-        // orden por fecha desc
+        // Orden por fecha desc
         all.sort(Comparator.comparing((ModerationCase mc) -> mc.createdAt).reversed());
 
         int from = (page - 1) * PAGE_SIZE;
@@ -103,8 +117,10 @@ public class CaseCommand implements Command {
 
         StringBuilder sb = new StringBuilder();
         for (ModerationCase mc : slice) {
-            String id = mc.id != null ? mc.id.toHexString() : "?";
-            String line = "`#" + id.substring(0, 6) + "` **" + mc.type + "** " +
+            String id = (mc.id != null ? mc.id : "?");
+            String shortId = id.length() > 6 ? id.substring(0, 6) : id;
+
+            String line = "`#" + shortId + "` **" + mc.type + "** " +
                     "<@" + mc.targetId + "> · " +
                     i18n.msg(ctx.locale(), "case.by") + " <@" + mc.moderatorId + ">" +
                     (mc.reason != null && !mc.reason.isBlank() ? " — " + mc.reason : "");
@@ -115,15 +131,16 @@ public class CaseCommand implements Command {
     }
 
     private void handleShow(CommandContext ctx) {
-        String idStr = ctx.event().getOption("id").getAsString();
-        ModerationCase mc = null;
-        try {
-            mc = ModerationCase.findById(new ObjectId(idStr));
-        } catch (Exception ignored) {}
-        if (mc == null) { ctx.hook().sendMessage(i18n.msg(ctx.locale(), "case.show.notfound")).queue(); return; }
+        String idStr = ctx.event().getOption("id").getAsString().trim();
+
+        ModerationCase mc = cases.findById(idStr).orElse(null);
+        if (mc == null || !Objects.equals(mc.guildId, ctx.guild().getId())) {
+            ctx.hook().sendMessage(i18n.msg(ctx.locale(), "case.show.notfound")).queue();
+            return;
+        }
 
         EmbedBuilder eb = new EmbedBuilder()
-                .setTitle(i18n.msg(ctx.locale(), "case.show.title") + " #" + mc.id.toHexString())
+                .setTitle(i18n.msg(ctx.locale(), "case.show.title") + " #" + mc.id)
                 .setColor(new Color(0x57F287))
                 .addField("Type", String.valueOf(mc.type), true)
                 .addField("Target", "<@" + mc.targetId + ">", true)
@@ -136,28 +153,34 @@ public class CaseCommand implements Command {
     }
 
     private void handleDelete(CommandContext ctx) {
-        String idStr = ctx.event().getOption("id").getAsString();
-        boolean ok = false;
-        try {
-            ok = ModerationCase.deleteById(new ObjectId(idStr));
-        } catch (Exception ignored) {}
-        ctx.hook().sendMessage(ok
-                ? i18n.msg(ctx.locale(), "case.delete.ok")
-                : i18n.msg(ctx.locale(), "case.delete.notfound")).queue();
+        String idStr = ctx.event().getOption("id").getAsString().trim();
+
+        boolean ok = cases.delete(idStr);
+        ctx.hook().sendMessage(
+                ok
+                        ? i18n.msg(ctx.locale(), "case.delete.ok")
+                        : i18n.msg(ctx.locale(), "case.delete.notfound")
+        ).queue();
     }
 
     private void handleReason(CommandContext ctx) {
-        String idStr = ctx.event().getOption("id").getAsString();
+        String idStr = ctx.event().getOption("id").getAsString().trim();
         String reason = ctx.event().getOption("reason").getAsString();
 
-        ModerationCase mc = null;
-        try { mc = ModerationCase.findById(new ObjectId(idStr)); } catch (Exception ignored) {}
-        if (mc == null) { ctx.hook().sendMessage(i18n.msg(ctx.locale(), "case.show.notfound")).queue(); return; }
+        ModerationCase mc = cases.findById(idStr).orElse(null);
+        if (mc == null || !Objects.equals(mc.guildId, ctx.guild().getId())) {
+            ctx.hook().sendMessage(i18n.msg(ctx.locale(), "case.show.notfound")).queue();
+            return;
+        }
 
         mc.reason = reason;
-        mc.persistOrUpdate();
+        cases.save(mc);
+
         ctx.hook().sendMessage(i18n.msg(ctx.locale(), "case.reason.ok")).queue();
     }
 
-    @Override public String name() { return "case"; }
+    @Override
+    public String name() {
+        return "case";
+    }
 }
