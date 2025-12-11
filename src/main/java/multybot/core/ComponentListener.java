@@ -1,9 +1,7 @@
-package multybot;
+package multybot.core;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import multybot.core.ComponentContext;
-import multybot.core.ComponentRouter;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.events.interaction.component.GenericComponentInteractionCreateEvent;
