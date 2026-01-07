@@ -122,27 +122,6 @@ public class CommandRouter {
                 );
     }
 
-    /**
-     * Register commands for a specific guild (dev / staging).
-     */
-    public void registerGuild(JDA jda, String guildId, Locale locale) {
-        Guild guild = jda.getGuildById(guildId);
-        if (guild == null) {
-            LOG.warnf("Could not find dev guild id=%s to register commands", guildId);
-            return;
-        }
-
-        List<Command> cmds = enabledCommands();
-        LOG.infof("Registering %d guild commands for guild=%s", cmds.size(), guildId);
-
-        guild.updateCommands()
-                .addCommands(cmds.stream().map(c -> c.slashData(locale)).toList())
-                .queue(
-                        s -> LOG.infof("Commands registered in guild %s", guildId),
-                        e -> LOG.errorf(e, "Failed to register commands in guild %s", guildId)
-                );
-    }
-
     // ----------------- Flags logic -----------------
 
     private boolean isEnabled(String cmdName) {
