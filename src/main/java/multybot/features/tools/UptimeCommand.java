@@ -1,9 +1,11 @@
 package multybot.features.tools;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import multybot.core.AbstractCommand;
 import multybot.core.CommandContext;
 import multybot.core.DiscordCommand;
+import multybot.infra.I18n;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 
@@ -15,7 +17,9 @@ import java.util.Locale;
 @DiscordCommand(name = "uptime", descriptionKey = "uptime.description")
 public class UptimeCommand extends AbstractCommand {
 
-    // Momento en el que se cargó la clase (inicio del bot)
+    @Inject I18n i18n;
+
+    // Momento en el que se inició el bot
     private static final Instant START_TIME = Instant.now();
 
     @Override
@@ -24,13 +28,11 @@ public class UptimeCommand extends AbstractCommand {
     }
 
     @Override
-    public String description(Locale locale) {
-        return "Muestra el tiempo que lleva encendido el bot.";
-    }
-
-    @Override
     public SlashCommandData slashData(Locale locale) {
-        return Commands.slash(name(), description(locale));
+        return Commands.slash(
+                name(),
+                i18n.msg(locale, "uptime.description")
+        );
     }
 
     @Override
@@ -42,12 +44,12 @@ public class UptimeCommand extends AbstractCommand {
         long minutes = d.toMinutesPart();
         long seconds = d.toSecondsPart();
 
-        String text = String.format(
-                "Uptime: %d días, %d horas, %d minutos, %d segundos.",
+        String reply = i18n.msg(
+                ctx.locale(),
+                "uptime.reply",
                 days, hours, minutes, seconds
         );
 
-        // Lo mando efímero para no ensuciar el canal
-        ctx.replyEphemeral(text);
+        ctx.replyEphemeral(reply);
     }
 }
