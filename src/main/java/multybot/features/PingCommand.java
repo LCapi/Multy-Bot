@@ -6,7 +6,7 @@ import multybot.core.AbstractCommand;
 import multybot.core.CommandContext;
 import multybot.core.Cooldown;
 import multybot.core.DiscordCommand;
-import multybot.i18n.MessageBundle;
+import multybot.infra.I18n;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 
@@ -14,11 +14,10 @@ import java.util.Locale;
 
 @ApplicationScoped
 @DiscordCommand(name = "ping", descriptionKey = "ping.description")
-@Cooldown()
+@Cooldown
 public class PingCommand extends AbstractCommand {
 
-    @Inject
-    MessageBundle messages;
+    @Inject I18n i18n;
 
     @Override
     public String name() {
@@ -26,19 +25,14 @@ public class PingCommand extends AbstractCommand {
     }
 
     @Override
-    public String description(Locale locale) {
-        return messages.get(locale, "ping.description");
-    }
-
-    @Override
     public SlashCommandData slashData(Locale locale) {
-        return Commands.slash(name(), description(locale));
+        return Commands.slash(name(), i18n.msg(locale, "ping.description"));
     }
 
     @Override
     public void execute(CommandContext ctx) {
         long ping = ctx.jda().getGatewayPing();
-        String reply = messages.get(ctx.locale(), "ping.reply", ping);
+        String reply = i18n.msg(ctx.locale(), "ping.reply", ping);
         ctx.reply(reply);
     }
 }

@@ -18,7 +18,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
-@DiscordCommand(name = "automod-exempt", descriptionKey = "automod.exempt.description")
+@DiscordCommand(name = "automod_exempt", descriptionKey = "automod.exempt.description")
 @RequirePermissions({ Permission.MANAGE_SERVER }) // o MANAGE_GUILD según versión
 @Cooldown(seconds = 5)
 public class AutomodExemptCommand implements Command {
