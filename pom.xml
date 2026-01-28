@@ -61,12 +61,6 @@
             <artifactId>quarkus-smallrye-openapi</artifactId>
         </dependency>
 
-        <!-- Persistencia (Mongo Panache) -->
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-mongodb-panache</artifactId>
-        </dependency>
-
         <!-- Infra bot: scheduler + health + metrics + logs JSON -->
         <dependency>
             <groupId>io.quarkus</groupId>
