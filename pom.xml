@@ -51,6 +51,7 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest</artifactId>
+            <version>3.30.7</version>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -79,6 +80,12 @@
             <artifactId>quarkus-logging-json</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Discord (JDA) -->
         <dependency>
             <groupId>net.dv8tion</groupId>
@@ -92,6 +99,7 @@
             <artifactId>quarkus-junit5</artifactId>
             <scope>test</scope>
         </dependency>
+
         <dependency>
             <groupId>io.rest-assured</groupId>
             <artifactId>rest-assured</artifactId>
