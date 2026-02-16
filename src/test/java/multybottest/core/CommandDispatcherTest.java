@@ -35,12 +35,14 @@ class CommandDispatcherTest {
         when(pingHandler.name()).thenReturn("ping");
 
         var dispatcher = new CommandDispatcher(List.of(pingHandler), discord);
+        reset(pingHandler); // <-- borra la interacción "name()" del constructor
+
         var ctx = new CommandContext("i1", "g1", "c1", "u1", Map.of());
 
         dispatcher.dispatch("nope", ctx);
 
         verify(discord).reply("i1", "Unknown command: nope");
         verifyNoMoreInteractions(discord);
-        verifyNoInteractions(pingHandler);
+        verifyNoInteractions(pingHandler); // ahora sí
     }
 }
