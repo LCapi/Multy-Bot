@@ -20,11 +20,17 @@ class PingCommandServiceTest {
     void repliesPong() {
         var service = new PingCommandService(discord);
 
-        var ctx = new CommandContext("i1", "g1", "c1", "u1", Map.of());
+        var ctx = new CommandContext(
+                "interaction-1",
+                "guild-1",
+                "channel-1",
+                "user-1",
+                Map.of()
+        );
 
         service.handle(ctx);
 
-        verify(discord).reply("i1", "pong");
+        verify(discord).reply("interaction-1", "pong");
         verifyNoMoreInteractions(discord);
     }
 }
