@@ -19,3 +19,5 @@ ENV QUARKUS_HTTP_HOST=0.0.0.0
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75.0"
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar quarkus-run.jar"]
+
+LABEL org.opencontainers.image.source="https://github.com/LCapi/Multy-Bot"
