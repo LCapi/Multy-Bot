@@ -1,0 +1,12 @@
+services:
+  bot:
+    image: ghcr.io/lcapi/multy-bot:main
+    container_name: multy-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
