@@ -1,4 +1,4 @@
-name: Release
+name: Release and deploy to production
 
 on:
   push:
@@ -7,12 +7,15 @@ on:
 
 jobs:
   release:
-    name: Build, publish versioned image and create release
+    name: Build, publish versioned image and create GitHub release
     runs-on: ubuntu-latest
 
     permissions:
       contents: write
       packages: write
+
+    outputs:
+      release_tag: ${{ steps.vars.outputs.tag }}
 
     steps:
       - name: Checkout repository
@@ -55,9 +58,45 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release if missing
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.vars.outputs.tag }}
         run: |
-          gh release create "${{ steps.vars.outputs.tag }}" \
-            --generate-notes
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "GitHub Release $TAG_NAME already exists. Skipping creation."
+          else
+            gh release create "$TAG_NAME" --generate-notes
+          fi
+
+  deploy:
+    name: Deploy tagged version to Hetzner production
+    runs-on: ubuntu-latest
+    needs: release
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_SSH_KEY }}
+
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.HETZNER_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy release on server
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER }}
+          RELEASE_TAG: ${{ needs.release.outputs.release_tag }}
+        run: |
+          ssh "${HETZNER_USER}@${HETZNER_HOST}" "
+            set -Eeuo pipefail
+            cd /opt/multy-bot
+            export RELEASE_TAG='${RELEASE_TAG}'
+            /opt/multy-bot/deploy.sh
+          "
