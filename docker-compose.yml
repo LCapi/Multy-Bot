@@ -1,6 +1,6 @@
 services:
   bot:
-    image: ghcr.io/lcapi/multy-bot:main
+    image: ghcr.io/lcapi/multy-bot:${IMAGE_TAG:-main}
     container_name: multy-bot
     restart: unless-stopped
     env_file:
