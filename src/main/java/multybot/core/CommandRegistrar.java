@@ -4,6 +4,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.DiscordLocale;
@@ -34,6 +35,16 @@ public class CommandRegistrar extends ListenerAdapter {
         LOG.info("Command registration done.");
     }
 
+    @Override
+    public void onGuildJoin(GuildJoinEvent event) {
+        Guild guild = event.getGuild();
+
+        LOG.infof("Bot joined guild %s (%s) → registering slash commands...",
+                guild.getName(), guild.getId());
+
+        registerGuildCommands(guild);
+    }
+
     private void registerGuildCommands(Guild guild) {
         Locale locale = resolveGuildLocale(guild);
 
@@ -53,7 +64,6 @@ public class CommandRegistrar extends ListenerAdapter {
             try {
                 enabled.add(c.slashData(locale));
             } catch (Exception ex) {
-                // If one command fails to build, we don't want to break startup
                 LOG.errorf(ex, "Failed to build SlashCommandData for command '%s' (guild=%s)", name, guild.getId());
             }
         }
@@ -61,7 +71,6 @@ public class CommandRegistrar extends ListenerAdapter {
         LOG.infof("Guild %s → commands: total=%d, enabled=%d, skipped=%d",
                 guild.getId(), total, enabled.size(), skipped);
 
-        // Push to Discord for THIS guild (fast iteration; no global propagation delay)
         guild.updateCommands()
                 .addCommands(enabled)
                 .queue(
@@ -71,12 +80,10 @@ public class CommandRegistrar extends ListenerAdapter {
     }
 
     private static Locale resolveGuildLocale(Guild guild) {
-        // JDA: guild.getLocale() returns DiscordLocale
         DiscordLocale dl = guild != null ? guild.getLocale() : null;
         if (dl == null || dl == DiscordLocale.UNKNOWN) {
             return Locale.ENGLISH;
         }
-        // In some JDA versions dl.getLocale() returns a String like "en-US"
         return Locale.forLanguageTag(dl.getLocale());
     }
 
